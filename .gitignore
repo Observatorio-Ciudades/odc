@@ -2,8 +2,44 @@ docs/site/
 
 # OSX Junk
 .DS_Store
+:
 
 # test cache
 .cache/*
 tests/__pycache__/*
 *.pytest_cache/
+.ipynb_checkpoints/
+notebooks/.ipynb_checkpoints
+
+#data
+data/*
+
+#pyc
+*/odc/__pycache__/*
+*.pyc
+
+#logs
+*.log
+odc.egg-info/
+*/temp.html
+
+#docker
+*.js
+*.gitattributes
+*.devcontainer
+
+#docker
+*.js
+*.gitattributes
+*.devcontainer
+
+#docker
+*.js
+*.gitattributes
+*.devcontainer
+
+#tif files
+*.tif
+
+# env
+*.env
