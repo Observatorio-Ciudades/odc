@@ -1,7 +1,7 @@
 import os
 from dotenv import load_dotenv
 
-load_dotenv()
+load_dotenv('../aup/.env')
 
 """Global settings, can be configured by user with utils.config()."""
 

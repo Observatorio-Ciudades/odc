@@ -396,7 +396,7 @@ def delete_files_from_folder(delete_dir):
             utils.log('Failed to delete %s. Reason: %s' % (file_path, e))
 
 
-def graph_from_hippo(gdf, schema, edges_folder='edges', nodes_folder='nodes'):
+def graph_from_hippo(gdf, schema, edges_folder='edges', nodes_folder='nodes', projected_crs="EPSG:6372"):
     """
     Download OSMnx edges and nodes from DataBase according to GeoDataFrame boundary
 
@@ -405,6 +405,7 @@ def graph_from_hippo(gdf, schema, edges_folder='edges', nodes_folder='nodes'):
         schema (str): schema from DataBase where edges and nodes are stored
         edges_folder (str): folder name whithin schema where edges stored. Defaults to edges
         nodes_folder (str): folder name whithin schema where nodes stored. Defaults to nodes
+        projected_crs (str, optional): string containing projected crs to be used depending on area of interest. Defaults to "EPSG:6372".
 
     Returns:
         G (networkx.MultiDiGraph): Graph with edges and nodes from DataBase
@@ -412,7 +413,7 @@ def graph_from_hippo(gdf, schema, edges_folder='edges', nodes_folder='nodes'):
 		edges (geopandas.GeoDataFrame): GeoDataFrame for edges within boundaries
     """
 
-    gdf = gdf.to_crs("EPSG:6372")
+    gdf = gdf.to_crs(projected_crs)
     gdf = gdf.buffer(1).reset_index().rename(columns={0: "geometry"})
     gdf = gdf.set_geometry("geometry")
     gdf = gdf.to_crs("EPSG:4326")
@@ -478,3 +479,119 @@ def graph_from_hippo(gdf, schema, edges_folder='edges', nodes_folder='nodes'):
 
 
     return G, nodes, edges
+
+
+def create_osmnx_network(aoi, how='from_polygon', network_type='all_private'):
+    """Download OSMnx graph, nodes and edges according to a GeoDataFrame area of interest.
+       Based on Script07-download_osmnx.py located in database.
+
+    Args:
+        aoi (geopandas.GeoDataFrame): GeoDataFrame polygon boundary for the area of interest.
+        how (str, optional): Defines the OSMnx function to be used. "from_polygon" will call osmnx.graph.graph_from_polygon, 
+                                 while "from_bbox" will call osmnx.features.features_from_bbox. No other choices are accepted in this function, 
+                                 for more details see OSMnx documentation.
+        network_type (str, optional): String with the type of network to download (drive, walk, bike, all_private, all) for more details see OSMnx documentation. 
+                                        Defaults to 'all_private'.
+
+    Returns:
+        G (networkx.MultiDiGraph): Graph with edges and nodes within boundaries
+		nodes (geopandas.GeoDataFrame): GeoDataFrame for nodes within boundaries
+		edges (geopandas.GeoDataFrame): GeoDataFrame for edges within boundaries
+    """
+
+    # Set crs of area of interest
+    aoi = aoi.to_crs("EPSG:4326")
+    
+    if how == 'from_bbox':
+        # Read area of interest as a polygon geometry
+        poly = aoi.geometry
+        # Extracts coordinates from polygon as DataFrame
+        coord_val = poly.bounds
+        # Gets coordinates for bounding box
+        n = coord_val.maxy.max()
+        s = coord_val.miny.min()
+        e = coord_val.maxx.max()
+        w = coord_val.minx.min()
+        print(f"Extracted min and max coordinates from the municipality. Polygon N:{round(n,5)}, S:{round(s,5)}, E{round(e,5)}, W{round(w,5)}.")
+
+        # Downloads OSMnx graph from bounding box
+        G = ox.graph_from_bbox(n, s, e, w,
+                               network_type=network_type,
+                               simplify=True,
+                               retain_all=False,
+                               truncate_by_edge=False)
+        print("Created OSMnx graph from bounding box.")
+
+    elif how == 'from_polygon':        
+        # Downloads OSMnx graph from bounding box
+        G = ox.graph_from_polygon(aoi.unary_union,
+                                  network_type=network_type,
+                                  simplify=True,
+                                  retain_all=False,
+                                  truncate_by_edge=False)
+        print("Created OSMnx graph from bounding polygon.")
+
+    else:
+        print("Invalid argument 'how'.")
+
+    #Transforms graph to nodes and edges Geodataframe
+    nodes, edges = ox.graph_to_gdfs(G)
+    #Resets index to access osmid as a column
+    nodes.reset_index(inplace=True)
+    #Resets index to acces u and v as columns
+    edges.reset_index(inplace=True)
+    print(f"Converted OSMnx graph to {len(nodes)} nodes and {len(edges)} edges GeoDataFrame.")
+
+    # Defines columns of interest for nodes and edges
+    nodes_columns = ["osmid", "x", "y", "street_count", "geometry"]
+    edges_columns = [
+        "osmid",
+        "v",
+        "u",
+        "key",
+        "oneway",
+        "lanes",
+        "name",
+        "highway",
+        "maxspeed",
+        "length",
+        "geometry",
+        "bridge",
+        "ref",
+        "junction",
+        "tunnel",
+        "access",
+        "width",
+        "service",
+    ]
+    # if column doesn't exist it creates it as nan
+    for c in nodes_columns:
+        if c not in nodes.columns:
+            nodes[c] = np.nan
+            print(f"Added column {c} for nodes.")
+    for c in edges_columns:
+        if c not in edges.columns:
+            edges[c] = np.nan
+            print(f"Added column {c} for edges.")
+    # Filters GeoDataFrames for relevant columns
+    nodes = nodes[nodes_columns]
+    edges = edges[edges_columns]
+    print("Filtered columns.")
+
+    # Converts columns with lists to strings to allow saving to local and further processes.
+    for col in nodes.columns:
+        if any(isinstance(val, list) for val in nodes[col]):
+            nodes[col] = nodes[col].astype('string')
+            print(f"Column: {col} in nodes gdf, has a list in it, the column data was converted to string.")
+    for col in edges.columns:
+        if any(isinstance(val, list) for val in edges[col]):
+            edges[col] = edges[col].astype('string')
+            print(f"Column: {col} in nodes gdf, has a list in it, the column data was converted to string.")
+
+    # Final format
+    nodes_gdf = nodes.set_crs("EPSG:4326")
+    edges_gdf = edges.set_crs("EPSG:4326")
+    nodes_gdf = nodes_gdf.set_index('osmid')
+    edges_gdf = edges_gdf.set_index(["u", "v", "key"])
+
+    return G,nodes_gdf,edges_gdf

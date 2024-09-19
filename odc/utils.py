@@ -249,7 +249,10 @@ def get_seeds(gdf, node_mapping, column_name):
 		np.array: numpy.array with the set of seeds
 	"""
 	# Get the seed to calculate shortest paths
-	return np.array(list(set([node_mapping[i] for i in gdf[column_name]])))
+	return np.array(list([node_mapping[i] for i in gdf[column_name]]))
+    
+    # Old return: We used to only calculate time. When count became relevant, set() was removed.
+    #return np.array(list(set([node_mapping[i] for i in gdf[column_name]])))
 
 def haversine(coord1, coord2):
 	"""
