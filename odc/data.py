@@ -20,13 +20,10 @@ import shutil
 
 from . import utils
 
- 
-ox.config(
-    data_folder="../data",
-    cache_folder="../data/raw/cache",
-    use_cache=True,
-    log_console=True,
-)
+ox.settings.data_folder = "../data"
+ox.settings.cache_folder = "../data/raw/cache"
+ox.settings.use_cache = True
+ox.settings.log_console = True
 
 
 def create_polygon(bbox, city, save=True):
