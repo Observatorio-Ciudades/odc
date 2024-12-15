@@ -1,9 +1,9 @@
 ![PyPI](https://img.shields.io/pypi/v/your-package-name)
 ![Build](https://github.com/username/repo-name/actions/workflows/main.yml/badge.svg)
-[![codecov](https://codecov.io/gh/username/repo-name/branch/main/graph/badge.svg)](https://codecov.io/gh/username/repo-name)
 ![Downloads](https://img.shields.io/pypi/dm/your-package-name)
 
-Descripción breve de tu proyecto...
+El Observatorio de Ciudades (ODC) es una plataforma la cual busca presentarse como una plataforma innovación se enfoca en ayudar a recopilar, procesar, analizar y visualizar datos relacionados a dinámicas urbanas. 
+Este repositorio contiene herramientas de código abierto diseñadas para trabajar y facilitar la exploración de temas como infraestructura, transporte, sostenibilidad, y más. A través de estas herramientas, el Observatorio aspira a transformar datos complejos en publicaciones comprensibles que fomenten el pensamiento crítico en cuanto al desarrollo urbano de las personas.
 
 
 # Estructura para proyectos
