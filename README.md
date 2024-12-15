@@ -1,3 +1,11 @@
+![PyPI](https://img.shields.io/pypi/v/your-package-name)
+![Build](https://github.com/username/repo-name/actions/workflows/main.yml/badge.svg)
+[![codecov](https://codecov.io/gh/username/repo-name/branch/main/graph/badge.svg)](https://codecov.io/gh/username/repo-name)
+![Downloads](https://img.shields.io/pypi/dm/your-package-name)
+
+Descripción breve de tu proyecto...
+
+
 # Estructura para proyectos
 
 _Estructura flexible para proyectos de ciencia de datos._
