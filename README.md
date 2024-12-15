@@ -1,6 +1,5 @@
 ![PyPI](https://img.shields.io/pypi/v/your-package-name)
 ![Downloads](https://img.shields.io/pypi/dm/your-package-name)
-![codecov](https://codecov.io/gh/username/repo-name/branch/main/graph/badge.svg)](https://codecov.io/gh/username/repo-name)
 
 El Observatorio de Ciudades (ODC) es una plataforma la cual busca presentarse como una plataforma innovación se enfoca en ayudar a recopilar, procesar, analizar y visualizar datos relacionados a dinámicas urbanas. 
 
