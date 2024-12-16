@@ -68,8 +68,9 @@ La estructura de los folders de este proyecto es:
 
 ### Ejemplo de uso básico
 ------------
-
+```python
     # Import the module and required libraries
+    # Example: loading a shapefile that represents the geometry of a city or region.
     from raster import download_raster_from_pc
     import geopandas as gpd
     
@@ -106,4 +107,4 @@ La estructura de los folders de este proyecto es:
     
     # Inspect the output
     print(df_result.head())
-
+```
