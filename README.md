@@ -55,7 +55,7 @@ La estructura de los folders de este proyecto es:
 
 ```
 
-## Raster Analysis
+# Raster Analysis
 ------------
 
 ```
@@ -68,6 +68,12 @@ La estructura de los folders de este proyecto es:
 
 ### Ejemplo de uso básico
 ------------
+
+```git
+cd odc
+cd raster.py
+```
+
 ```python
     # Import the module and required libraries
     # Example: loading a shapefile that represents the geometry of a city or region.
