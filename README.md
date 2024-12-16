@@ -9,19 +9,19 @@ Este repositorio contiene herramientas de código abierto diseñadas para trabaj
 
 
 
-## Estructura para proyectos
+# Estructura para proyectos
 
 _Estructura flexible para proyectos de ciencia de datos._
 
 
-### Para iniciar un nuevo proyecto:
+## Para iniciar un nuevo proyecto:
 ------------
 
     git clone This repo
     
 
 
-### Estructura mínima
+## Estructura mínima
 ------------
 
 La estructura de los folders de este proyecto es:
@@ -66,7 +66,7 @@ La estructura de los folders de este proyecto es:
 │
 ```
 
-### Ejemplo de uso básico
+## Ejemplo de uso básico
 ------------
 
 ```git
