@@ -54,3 +54,56 @@ La estructura de los folders de este proyecto es:
     └── visualization.py  <- Scripts to create exploratory and results oriented visualizations
 
 ```
+
+## Raster Analysis
+------------
+
+```
+├── odc/                 
+│   ├── data.py        <- Scripts to download or generate data
+│   ├── raster.py      <- Principal functions for raster data treatment and analysis functions
+│   ├── utils.py       <- Utilities and auxiliary functions
+│
+```
+
+### Ejemplo de uso básico
+------------
+
+# Import the module and required libraries
+from raster import download_raster_from_pc
+import geopandas as gpd
+
+# Load your shapefile or GeoJSON file
+gdf = gpd.read_file("path/to/your/shapefile.shp")
+
+# Define analysis parameters
+params = {
+    "index_analysis": "NDVI",
+    "city": "ExampleCity",
+    "freq": "MS",
+    "start_date": "2022-01-01",
+    "end_date": "2022-12-31",
+    "tmp_dir": "/path/to/tmp",
+    "band_name_dict": {
+        "B2": "Blue",
+        "B3": "Green",
+        "B4": "Red",
+        "B8": "NIR",
+    },
+}
+
+# Download and process raster data
+df_result = download_raster_from_pc(
+    gdf=gdf,
+    index_analysis=params["index_analysis"],
+    city=params["city"],
+    freq=params["freq"],
+    start_date=params["start_date"],
+    end_date=params["end_date"],
+    tmp_dir=params["tmp_dir"],
+    band_name_dict=params["band_name_dict"]
+)
+
+# Inspect the output
+print(df_result.head())
+
