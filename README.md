@@ -1,5 +1,5 @@
-![PyPI](https://img.shields.io/pypi/v/your-package-name)
-![Downloads](https://img.shields.io/pypi/dm/your-package-name)
+![PyPI](https://img.shields.io/pypi/v/setup.py)
+![Downloads](https://img.shields.io/pypi/dm/setup.py)
 
 # ODC
 
@@ -62,16 +62,14 @@ The structure of the folders for this repository is:
 
 ## Basic usage example
 ------------
-
-```git
-cd odc
-cd raster.py
+```
+pip install odc
 ```
 
 ```python
     # Import the module and required libraries
     # Example: loading a shapefile that represents the geometry of a city or region.
-    from raster import download_raster_from_pc
+    from raster import odc.download_raster_from_pc
     import geopandas as gpd
     
     # Load your shapefile or GeoJSON file
@@ -97,7 +95,7 @@ cd raster.py
 
     
     # Download and process raster data
-    df_result = download_raster_from_pc(
+    df_result = odc.download_raster_from_pc(
         gdf=gdf, # GeoDataFrame
         index_analysis=params["index_analysis"], # Analysis index (ndvi, ndmi)
         city=params["city"], # Name of the city or region
