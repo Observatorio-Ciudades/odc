@@ -8,12 +8,6 @@ El Observatorio de Ciudades (ODC) es una plataforma la cual busca presentarse co
 Este repositorio contiene herramientas de código abierto diseñadas para trabajar y facilitar la exploración de temas como infraestructura, transporte, sostenibilidad, y más. A través de estas herramientas, el Observatorio aspira a transformar datos complejos en publicaciones comprensibles que fomenten el pensamiento crítico en cuanto al desarrollo urbano de las personas.
 
 
-
-# Estructura para proyectos
-
-_Estructura flexible para proyectos de ciencia de datos._
-
-
 ## Para iniciar un nuevo proyecto:
 ------------
 
