@@ -1,5 +1,5 @@
-![PyPI](https://img.shields.io/pypi/v/setup.py)
-![Downloads](https://img.shields.io/pypi/dm/setup.py)
+![PyPI](https://img.shields.io/pypi/v/odc)
+![Downloads](https://img.shields.io/pypi/dm/odc)
 
 # ODC
 
