@@ -3,22 +3,22 @@
 
 # ODC
 
-El Observatorio de Ciudades (ODC) es una plataforma la cual busca presentarse como una plataforma innovación se enfoca en ayudar a recopilar, procesar, analizar y visualizar datos relacionados a dinámicas urbanas. 
+The "Observatorio de Ciudades" (ODC) is a platform which seeks to present itself as an innovation platform focused on helping to collect, process, analyze and visualize data related to urban dynamics. 
 
-Este repositorio contiene herramientas de código abierto diseñadas para trabajar y facilitar la exploración de temas como infraestructura, transporte, sostenibilidad, y más. A través de estas herramientas, el Observatorio aspira a transformar datos complejos en publicaciones comprensibles que fomenten el pensamiento crítico en cuanto al desarrollo urbano de las personas.
+This repository contains open source tools designed to work with and facilitate the exploration of topics such as infrastructure, transportation, sustainability, and more. Through these tools, the Observatory aspires to transform complex data into understandable publications that encourage people's critical thinking regarding urban development.
 
 
-## Para iniciar un nuevo proyecto:
+## Satrting a new project
 ------------
 
     git clone This repo
     
 
 
-## Estructura mínima
+## Basic structure
 ------------
 
-La estructura de los folders de este proyecto es:
+The structure of the folders for this repository is:
 
 ```
 ├── README.md          <- The top-level README for developers using this project.
@@ -60,7 +60,7 @@ La estructura de los folders de este proyecto es:
 │
 ```
 
-## Ejemplo de uso básico
+## Basic usage example
 ------------
 
 ```git
@@ -85,24 +85,27 @@ cd raster.py
         "start_date": "2022-01-01",
         "end_date": "2022-12-31",
         "tmp_dir": "/path/to/tmp",
-        "band_name_dict": {
-            "B2": "Blue",
-            "B3": "Green",
-            "B4": "Red",
-            "B8": "NIR",
-        },
-    }
+        band_name_dict = {
+        "nir": [False],  # If the GSD (resolution) of this band is different, set to True.
+        "red": [False],  # If the GSD (resolution) of this band is different, set to True.
+        "eq": ['(nir-red)/(nir+red)'],  # Equation to calculate an index, such as NDVI.
+        "B2": "blue",   # Mapping band names to descriptive labels.
+        "B3": "green",
+        "B4": "red",
+        "B8": "nir"
+        }
+
     
     # Download and process raster data
     df_result = download_raster_from_pc(
-        gdf=gdf,
-        index_analysis=params["index_analysis"],
-        city=params["city"],
-        freq=params["freq"],
-        start_date=params["start_date"],
-        end_date=params["end_date"],
-        tmp_dir=params["tmp_dir"],
-        band_name_dict=params["band_name_dict"]
+        gdf=gdf, # GeoDataFrame
+        index_analysis=params["index_analysis"], # Analysis index (ndvi, ndmi)
+        city=params["city"], # Name of the city or region
+        freq=params["freq"], # Analysis frequency ("MS" for monthly, "D" for daily)
+        start_date=params["start_date"], # Start date (YYYY-MM-DD)
+        end_date=params["end_date"], # Finish date
+        tmp_dir=params["tmp_dir"], # Temporal dictionary for saving the processed data
+        band_name_dict=params["band_name_dict"] # Dictionary with names of spectral bands
     )
     
     # Inspect the output
