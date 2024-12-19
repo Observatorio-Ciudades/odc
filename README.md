@@ -5,50 +5,13 @@
 
 The "Observatorio de Ciudades" (ODC) is a platform which seeks to present itself as an innovation platform focused on helping to collect, process, analyze and visualize data related to urban dynamics. 
 
-This repository contains open source tools designed to work with and facilitate the exploration of topics such as infrastructure, transportation, sustainability, and more. Through these tools, the Observatory aspires to transform complex data into understandable publications that encourage people's critical thinking regarding urban development.
-
+This package streamlines spatial analysis processes by integrating various libraries and developing first-party functions. It is designed as a low-code solution for spatial analysis.
 
 ## Satrting a new project
 ------------
 
     git clone This repo
     
-
-
-## Basic structure
-------------
-
-The structure of the folders for this repository is:
-
-```
-├── README.md          <- The top-level README for developers using this project.
-├── data
-│   ├── external       <- Data from third party sources.
-│   ├── interim        <- Intermediate data that has been transformed.
-│   ├── processed      <- The final, canonical data sets for modeling.
-│   └── raw            <- The original, immutable data dump.
-│
-├── notebooks          <- Jupyter notebooks. Naming convention is a number (for ordering),
-│                         the creator's initials, and a short `-` delimited description, e.g.
-│                         `1.0-jqp-initial-data-exploration`.
-│
-├── references         <- Data dictionaries, manuals, and all other explanatory materials.
-│
-├── output            <- Generated analysis as HTML, PDF, LaTeX, etc.
-│   └── figures       <- Generated graphics and figures to be used in reporting
-|   └── text          <- Reports
-│
-└── src                <- Source code for use in this project.
-    ├── __init__.py    <- Makes src a Python module
-    │
-    ├── data.py        <- Scripts to download or generate data
-    │
-    ├── analysis.py    <- Scripts to analyse the data
-    │
-    └── visualization.py  <- Scripts to create exploratory and results oriented visualizations
-
-```
-
 # Raster Analysis
 ------------
 
@@ -71,6 +34,7 @@ pip install odc
     # Example: loading a shapefile that represents the geometry of a city or region.
     from raster import odc.download_raster_from_pc
     import geopandas as gpd
+    import odc
     
     # Load your shapefile or GeoJSON file
     gdf = gpd.read_file("path/to/your/shapefile.shp")
@@ -87,10 +51,6 @@ pip install odc
         "nir": [False],  # If the GSD (resolution) of this band is different, set to True.
         "red": [False],  # If the GSD (resolution) of this band is different, set to True.
         "eq": ['(nir-red)/(nir+red)'],  # Equation to calculate an index, such as NDVI.
-        "B2": "blue",   # Mapping band names to descriptive labels.
-        "B3": "green",
-        "B4": "red",
-        "B8": "nir"
         }
 
     
