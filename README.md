@@ -11,6 +11,79 @@ This package streamlines spatial analysis processes by integrating various libra
 ------------
 
     git clone This repo
+
+------------
+
+# Proximity
+------------
+
+## Basic usage example
+------------
+
+```
+pip install odc
+```
+
+```python
+
+    import osmnx as ox
+    import geopandas as gpd
+    import numpy as np
+    import odc
+    
+    # Example: Using functions to download and process an OSMnx network, and analyze POIs
+    def main():
+        # Step 1: Define an area of interest (AOI)
+        # Create a GeoDataFrame representing the boundary of the city (for example, using a polygon)
+        polygon = gpd.GeoSeries.from_file("../data/raw/city_boundary.geojson").unary_union
+        city = "ExampleCity"
+    
+        # Step 2: Create the network using the create_osmnx_network function
+        print("\n--- Creating OSMnx Network ---")
+        G, nodes, edges = odc.create_osmnx_network(
+            aoi=gpd.GeoDataFrame(geometry=[polygon]),
+            how="from_polygon",
+            network_type="walk"
+        )
+    
+        # Step 3: Download or retrieve the graph
+        print("\n--- Downloading Graph ---")
+        graph = odc.download_graph(polygon, city, network_type="walk", save=True)
+    
+        # Step 4: Define points of interest (POIs)
+        # Load POIs as a GeoDataFrame (example file with POIs for the city)
+        pois = gpd.read_file("../data/raw/pois.geojson")
+    
+        # Step 5: Analyze time to nearest POI using pois_time
+        print("\n--- Calculating Time to POIs ---")
+        walking_speed = walking_speed  # in km/hr
+        proximity_measure = "time_min"
+        pois_name = "amenity_shop"
+    
+        nodes_with_time = odc.pois_time(
+            G=graph,
+            nodes=nodes,
+            edges=edges,
+            pois=pois,
+            pois_name=pois_name,
+            prox_measure=proximity_measure,
+            walking_speed=walking_speed,
+            count_pois=(True, 10),  # Count POIs within a 10-minute range
+            projected_crs="EPSG:6372",
+            preprocessed_nearest=(False, "")
+        )
+    
+        # Save results to a file for further analysis
+        print("\n--- Saving Results ---")
+        nodes_with_time.to_file(f"../data/processed/nodes_with_{poi_name}_time.geojson", driver="GeoJSON")
+    
+    
+    if __name__ == "__main__":
+        main()
+
+```
+
+------------
     
 # Raster Analysis
 ------------
@@ -25,9 +98,6 @@ This package streamlines spatial analysis processes by integrating various libra
 
 ## Basic usage example
 ------------
-```
-pip install odc
-```
 
 ```python
     # Import the module and required libraries
