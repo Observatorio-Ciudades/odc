@@ -478,7 +478,7 @@ def graph_from_hippo(gdf, schema, edges_folder='edges', nodes_folder='nodes', pr
     return G, nodes, edges
 
 
-def create_osmnx_network(aoi, how='from_polygon', network_type='all_private'):
+def download_osmnx_network(aoi, how='from_polygon', network_type='all_private'):
     """Download OSMnx graph, nodes and edges according to a GeoDataFrame area of interest.
        Based on Script07-download_osmnx.py located in database.
 
@@ -586,9 +586,9 @@ def create_osmnx_network(aoi, how='from_polygon', network_type='all_private'):
             print(f"Column: {col} in nodes gdf, has a list in it, the column data was converted to string.")
 
     # Final format
-    nodes_gdf = nodes.set_crs("EPSG:4326")
-    edges_gdf = edges.set_crs("EPSG:4326")
-    nodes_gdf = nodes_gdf.set_index('osmid')
-    edges_gdf = edges_gdf.set_index(["u", "v", "key"])
+    nodes = nodes.set_crs("EPSG:4326")
+    edges = edges.set_crs("EPSG:4326")
+    nodes = nodes.set_index('osmid')
+    edges = edges.set_index(["u", "v", "key"])
 
-    return G,nodes_gdf,edges_gdf
+    return G, nodes, edges
