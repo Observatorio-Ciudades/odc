@@ -25,12 +25,8 @@ pip install odc
 ```
 
 ```python
-import osmnx as ox
 import geopandas as gpd
-import pandas as pd
-from shapely.geometry import Point
-import odc 
-from shapely.geometry import Polygon
+import odc
 ```
 
 ```python
