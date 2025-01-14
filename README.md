@@ -7,22 +7,18 @@ The "Observatorio de Ciudades" (ODC) is a platform which seeks to present itself
 
 This package streamlines spatial analysis processes by integrating various libraries and developing first-party functions. It is designed as a low-code solution for spatial analysis.
 
-## Satrting a new project
 ------------
 
-    git clone This repo
-
-------------
-
-# Proximity
-------------
-
-## Basic usage example
-------------
+# Installing the package
 
 ```python
 pip install odc
 ```
+------------
+# Basic usage example
+
+## Proximity analysis
+
 
 ```python
 import geopandas as gpd
@@ -51,7 +47,8 @@ pois = gpd.read_file("../path/to/pois/{}.geojson")
 if pois.crs is None:
     pois = pois.set_crs("EPSG:4326")  # Ensure POIs have a valid CRS
 
-# Step 4: Analyze time to nearest POI using a custom function
+# Step 4: Analyze walking time to nearest and total number
+# of POI accessible within a given time using a pois_time function
 print("\n--- Calculating Time to POIs ---")
 walking_speed = 5  # Walking speed in km/h
 proximity_measure = "time_min"
@@ -92,7 +89,7 @@ print(f"Results saved to {output_path}")
 │
 ```
 
-## Basic usage example
+## Raster image analysis
 ------------
 
 ```python
