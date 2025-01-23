@@ -109,12 +109,10 @@ plt.ylabel("Latitude", fontsize=12)
 plt.legend(loc="upper left", fontsize=10)
 plt.grid(alpha=0.3)
 plt.show()
-``
+```
 
-------------
     
 # Raster Analysis
-------------
 
 ## Basic usage example
 ------------
