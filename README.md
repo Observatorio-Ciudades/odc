@@ -9,6 +9,11 @@ This package streamlines spatial analysis processes by integrating various libra
 
 ------------
 
+# Initialize a new project
+```git
+git clone https://github.com/Observatorio-Ciudades/odc/
+```
+
 # Installing the package
 
 ```python
