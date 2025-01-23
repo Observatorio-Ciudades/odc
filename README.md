@@ -11,7 +11,7 @@ This package streamlines spatial analysis processes by integrating various libra
 
 # Initialize a new project
 ```git
-git clone https://github.com/Observatorio-Ciudades/odc/
+git clone https://github.com/Observatorio-Ciudades/odc
 ```
 
 # Installing the package
@@ -116,11 +116,11 @@ plt.grid(alpha=0.3)
 plt.show()
 ```
 
-    
+------------    
 # Raster Analysis
 
 ## Basic usage example
-------------
+
 
 ```python
 # Example: download raster data based on an area of ​​interest (such as a GeoDataFrame with a hexagonal grid) and generate a DataFrame with a summary of the downloaded data.
