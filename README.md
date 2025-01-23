@@ -15,18 +15,19 @@ This package streamlines spatial analysis processes by integrating various libra
 pip install odc
 ```
 ------------
-# Basic usage example
 
-## Proximity analysis
-
+# Proximity analysis
+## Basic usage example
 
 ```python
 import geopandas as gpd
 import odc
+import matplotlib.pyplot as plt
+from shapely.geometry import Polygon
 ```
 
 ```python
-
+# Example: Define an area of interest, download an OpenStreetMap network, analyze walking times to points of interest, and save the results as a GeoJSON file.
 # Step 1: Define an area of interest (AOI)
 print("\n--- Defining Area of Interest (AOI) ---")
 # Load the boundary GeoJSON file in EPSG:4326 and ensure it has a valid CRS
@@ -76,61 +77,118 @@ print(f"Results saved to {output_path}")
 
 ```
 
+```python
+# Step 6: Graph visualization
+# Load the AOI, nodes with time, and POIs GeoJSON files (mocked paths for example)
+aoi_path = "../path/to/polygon/aoi.geojson"
+pois_path = "../path/to/pois/pois.geojson"
+nodes_with_time_path = "../data/to/output/nodes_with_example_poi_time.geojson"
+
+# Read the GeoJSON files
+aoi_gdf = gpd.read_file(aoi_path)
+pois_gdf = gpd.read_file(pois_path)
+nodes_with_time_gdf = gpd.read_file(nodes_with_time_path)
+
+# Plot the data
+fig, ax = plt.subplots(figsize=(12, 8))
+aoi_gdf.boundary.plot(ax=ax, color="black", linewidth=1, label="AOI Boundary")
+nodes_with_time_gdf.plot(
+    ax=ax,
+    column="time_min",  # Assuming "time_min" is the time to POIs column
+    cmap="viridis",
+    legend=True,
+    markersize=5,
+    label="Nodes (Time to POI)"
+)
+pois_gdf.plot(ax=ax, color="red", markersize=20, label="POIs")
+
+# Add labels and legend
+plt.title("Walking Time to Points of Interest", fontsize=14)
+plt.xlabel("Longitude", fontsize=12)
+plt.ylabel("Latitude", fontsize=12)
+plt.legend(loc="upper left", fontsize=10)
+plt.grid(alpha=0.3)
+plt.show()
+``
+
 ------------
     
 # Raster Analysis
 ------------
 
-```
-├── odc/                 
-│   ├── data.py        <- Scripts to download or generate data
-│   ├── raster.py      <- Principal functions for raster data treatment and analysis functions
-│   ├── utils.py       <- Utilities and auxiliary functions
-│
-```
-
-## Raster image analysis
+## Basic usage example
 ------------
 
 ```python
-# Import the module and required libraries
-# Example: loading a shapefile that represents the geometry of a city or region.
-from raster import odc.download_raster_from_pc
+# Example: download raster data based on an area of ​​interest (such as a GeoDataFrame with a hexagonal grid) and generate a DataFrame with a summary of the downloaded data.
 import geopandas as gpd
 import odc
+import matplotlib.pyplot as plt
+import seaborn sns
 ```
 
 ```python
-# Load your shapefile or GeoJSON file
-gdf = gpd.read_file("path/to/your/shapefile.shp")
+# Step 1: Define the area of interest (AOI) as a GeoDataFrame
+hex_gdf = gpd.read_file("path/to/{}.geojson")  # GeoJSON file containing the hexagonal grid
 
-# Define analysis parameters
-params = {
-    "index_analysis": "NDVI",
-    "city": "ExampleCity",
-    "freq": "MS",
-    "start_date": "2022-01-01",
-    "end_date": "2022-12-31",
-    "tmp_dir": "/path/to/tmp",
-    band_name_dict = {
-    "nir": [False],  # If the GSD (resolution) of this band is different, set to True.
-    "red": [False],  # If the GSD (resolution) of this band is different, set to True.
-    "eq": ['(nir-red)/(nir+red)'],  # Equation to calculate an index, such as NDVI.
+# Step 2: Set the parameters for raster data download and analysis
+index_analysis = "NDVI"  # The index to be analyzed
+city = "ExampleCity"  # The name of the city or area to analyze
+freq = "M"  # Frequency of the analysis ("M" = monthly)
+start_date = "YYYY-MM-DD"  # Start date for the analysis
+end_date = "YYYY-MM-DD"  # End date for the analysis
+tmp_dir = "/temporary/path"  # Temporary directory where raster data will be saved
+satellite = "sentinel-2-l2a"  # Satellite used to download imagery
+projection_crs = "EPSG:6372"  # Projection for processing the data
+compute_unavailable_dates = True  # Whether to compute missing months
+
+# Dictionary with spectral band names (example for Sentinel-2)
+band_name_dict= {
+        "nir": [False],  # Near-infrared band
+        "red": [False],  # Red band
+        "eq": ["(nir-red)/(nir+red)"],  # NDVI formula
     }
 
-
-# Download and process raster data
-df_result = odc.download_raster_from_pc(
-    gdf=gdf, # GeoDataFrame
-    index_analysis=params["index_analysis"], # Analysis index (ndvi, ndmi)
-    city=params["city"], # Name of the city or region
-    freq=params["freq"], # Analysis frequency ("MS" for monthly, "D" for daily)
-    start_date=params["start_date"], # Start date (YYYY-MM-DD)
-    end_date=params["end_date"], # Finish date
-    tmp_dir=params["tmp_dir"], # Temporal dictionary for saving the processed data
-    band_name_dict=params["band_name_dict"] # Dictionary with names of spectral bands
+# Step 3: Download and process the raster data
+print("Downloading and processing raster data...")
+df_len = download_raster_from_pc(
+    gdf=hex_gdf,
+    index_analysis=index_analysis,
+    city=city,
+    freq=freq,
+    start_date=start_date,
+    end_date=end_date,
+    tmp_dir=tmp_dir,
+    band_name_dict=band_name_dict,
+    satellite=satellite,
+    projection_crs=projection_crs,
+    compute_unavailable_dates=compute_unavailable_dates
 )
 
-# Inspect the output
-print(df_result.head())
+# Step 4: Visualize the summary of downloaded data
+print("Summary of downloaded data:")
+print(df_len.head())
+```
+
+```python
+# Step 6: Graph visualization
+# Visualization: Distribution of Data IDs over Months
+plt.figure(figsize=(10, 6))
+sns.barplot(x="month", y="data_id", data=df_len, palette="viridis")
+plt.title("Data ID Distribution Across Months", fontsize=14)
+plt.xlabel("Month", fontsize=12)
+plt.ylabel("Data ID", fontsize=12)
+plt.xticks(fontsize=10)
+plt.yticks(fontsize=10)
+plt.grid(axis='y', linestyle='--', alpha=0.7)
+plt.show()
+
+# Visualization: Interpolation Values
+plt.figure(figsize=(10, 6))
+sns.heatmap(df.pivot_table(index="year", columns="month", values="interpolate"), 
+            annot=True, cmap="coolwarm", cbar=True, linewidths=0.5)
+plt.title("Interpolation Status (Heatmap)", fontsize=14)
+plt.xlabel("Month", fontsize=12)
+plt.ylabel("Year", fontsize=12)
+plt.show()
 ```
