@@ -832,8 +832,7 @@ def create_popdata_hexgrid(aoi, pop_dir, index_column, pop_columns, res_list, pr
 
 	return hex_socio_gdf
 
-def pois_time(G, nodes, edges, pois, poi_name, prox_measure, walking_speed, count_pois=(False,0), projected_crs="EPSG:6372",
-			  preprocessed_nearest=(False,'dir')):
+def pois_time(G, nodes, edges, pois, poi_name, prox_measure, walking_speed, count_pois=(False,0), projected_crs="EPSG:6372"):
 	""" Finds time from each node to nearest poi (point of interest).
 	Args:
 		G (networkx.MultiDiGraph): Graph with edge bearing attributes
@@ -848,17 +847,10 @@ def pois_time(G, nodes, edges, pois, poi_name, prox_measure, walking_speed, coun
 							   or if prox_measure="time_min" but needing to fill time_min NaNs.
 		count_pois (tuple, optional): tuple containing boolean to find number of pois within given time proximity. Defaults to (False, 0)
 		projected_crs (str, optional): string containing projected crs to be used depending on area of interest. Defaults to "EPSG:6372".
-		preprocessed_nearest (tuple, optional): tuple containing boolean to use a previously calculated nearest file located in a local directory.
-												Used when calculating proximity in a non-continous network while keeping actual nearest nodes to each poi
-												from an original continous network. Defaults to (False, 'dir).
 
 	Returns:
 		geopandas.GeoDataFrame: GeoDataFrame with nodes containing time to nearest source (s).
 	"""
-
-	# Helps by printing steps to find solutions (If using, make sure test_save_dir exists.)
-	test_save = False
-	test_save_dir = "../data/external/debugging/pois_time/"
 
     ##########################################################################################
     # STEP 1: NEAREST. 
@@ -890,19 +882,10 @@ def pois_time(G, nodes, edges, pois, poi_name, prox_measure, walking_speed, coun
 			return nodes_time
 	
 	else:
-		if preprocessed_nearest[0]:
-			# Load precalculated (with entire network) nearest gdf.
-			nearest = gpd.read_file(preprocessed_nearest[1]+f"nearest_{poi_name}.gpkg")
-			print(f"Loaded {len(nearest)} previously calculated nearest data for {poi_name}.")
-			# Filter nearest by keeping osmids located in current nodes (filtered network) gdf.
-			osmid_check_list = list(nodes.reset_index().osmid.unique())
-			nearest = nearest.loc[nearest.osmid.isin(osmid_check_list)]
-			print(f"Filtered nearest for filtered network. Kept {len(nearest)}.")
-		else:
-			### Find nearest osmnx node for each DENUE point.
-			nearest = find_nearest(G, nodes, pois, return_distance= True)
-			nearest = nearest.set_crs("EPSG:4326")
-			print(f"Found and assigned {len(nearest)} nearest node osmid to each {poi_name}.")
+		### Find nearest osmnx node for each DENUE point.
+		nearest = find_nearest(G, nodes, pois, return_distance= True)
+		nearest = nearest.set_crs("EPSG:4326")
+		print(f"Found and assigned {len(nearest)} nearest node osmid to each {poi_name}.")
 
 		##########################################################################################
 		# STEP 2: DISTANCE NEAREST POI. 
@@ -920,6 +903,9 @@ def pois_time(G, nodes, edges, pois, poi_name, prox_measure, walking_speed, coun
 		if prox_measure == 'length':
 			edges['time_min'] = (edges['length']*60)/(walking_speed*1000)
 		else:
+			if 'time_min' not in edges.columns:
+				edges['time_min'] = np.nan
+
 			# NaNs in time_min? --> Use walking speed
 			no_time = len(edges.loc[edges['time_min'].isna()])
 			edges['time_min'].fillna((edges['length']*60)/(walking_speed*1000),inplace=True)
@@ -927,28 +913,12 @@ def pois_time(G, nodes, edges, pois, poi_name, prox_measure, walking_speed, coun
 
 		# 2.2 --------------- ELEMENTS NEEDED OUTSIDE THE ANALYSIS LOOP
 		# The pois are divided by batches of 200 or 250 pois and analysed using the function calculate_distance_nearest_poi.
-		
-		# -----
-		if test_save:
-			nodes.to_file(test_save_dir + f"nodes_{poi_name}.geojson", driver='GeoJSON')
-			edges.to_file(test_save_dir + f"edges_{poi_name}.geojson", driver='GeoJSON')
-		# -----
 
 		# nodes_analysis is a nodes gdf (index reseted) used in the function aup.calculate_distance_nearest_poi.
 		nodes_analysis = nodes.reset_index().copy()
 
-		# -----
-		if test_save:
-			nodes_analysis.to_file(test_save_dir + f"empty_nodes_analysis_{poi_name}.geojson", driver='GeoJSON')
-		# -----
-
 		# nodes_time: int_gdf stores, processes time data within the loop and returns final gdf. (df_int, df_temp, df_min and nodes_distance in previous code versions)
 		nodes_time = nodes.reset_index().copy()
-
-		# -----
-		if test_save:
-			nodes_time.to_file(test_save_dir + f"empty_nodes_time_{poi_name}.gpkg", driver='GPKG')
-		# -----
 
 		# --------------- 2.3 PROCESSING DISTANCE
 		print (f"Starting time analysis for {poi_name}.")
@@ -968,11 +938,6 @@ def pois_time(G, nodes, edges, pois, poi_name, prox_measure, walking_speed, coun
 				# Set osmid as column, not index
 				nodes_distance_prep.drop(columns=['index'],inplace=True)
 				nodes_distance_prep.reset_index(inplace=True)
-				
-				# -----
-				if test_save:
-					nodes_distance_prep.to_file(test_save_dir + f"nodes_distance_prep_{poi_name}_200batch{k}.gpkg", driver='GPKG')
-				# -----
 
 				# Extract from nodes_distance_prep to nodes_time the batch's calculated time data
 				batch_time_col = 'time_'+str(k)+poi_name
@@ -1007,11 +972,6 @@ def pois_time(G, nodes, edges, pois, poi_name, prox_measure, walking_speed, coun
 				nodes_distance_prep.drop(columns=['index'],inplace=True)
 				nodes_distance_prep.reset_index(inplace=True)
 
-				# -----
-				if test_save:
-					nodes_distance_prep.to_file(test_save_dir + f"nodes_distance_prep_{poi_name}_250batch{k}.gpkg", driver='GPKG')
-				# -----
-
 				# Extract from nodes_distance_prep to nodes_time the batch's calculated time data
 				batch_time_col = 'time_'+str(k)+poi_name
 				time_cols.append(batch_time_col)
@@ -1034,11 +994,6 @@ def pois_time(G, nodes, edges, pois, poi_name, prox_measure, walking_speed, coun
 				nodes_time[f'{poi_name}_{count_pois[1]}min'] = nodes_time[poiscount_cols].sum(axis=1)
 
 		print(f"Finished time analysis for {poi_name}.")
-
-		# -----
-		if test_save:
-			nodes_time.to_file(test_save_dir + f"nodes_time_{poi_name}.gpkg", driver='GPKG')
-		# -----
 
 		##########################################################################################
 		# STEP 3: FINAL FORMAT. 
@@ -1811,9 +1766,6 @@ def id_pois_time(G, nodes, edges, pois, poi_name, prox_measure, walking_speed, g
         goi_id (str): Text containing name of column with unique ID for the geometry of interest from which pois where created.
 		count_pois (tuple, optional): tuple containing boolean to find number of pois within given time proximity. Defaults to (False, 0)
 		projected_crs (str, optional): string containing projected crs to be used depending on area of interest. Defaults to "EPSG:6372".
-		preprocessed_nearest (tuple, optional): tuple containing boolean to use a previously calculated nearest file located in a local directory.
-										Used when calculating proximity in a non-continous network while keeping actual nearest nodes to each poi
-										from an original continous network. Defaults to (False, 'dir).
 										
 	Returns:
 		geopandas.GeoDataFrame: GeoDataFrame with nodes containing time to nearest source (s).
