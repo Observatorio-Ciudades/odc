@@ -184,11 +184,11 @@ plt.yticks(fontsize=10)
 plt.grid(axis='y', linestyle='--', alpha=0.7)
 plt.show()
 
-# Visualization: Interpolation Values
+# Visualization: Index Values
 plt.figure(figsize=(10, 6))
 sns.heatmap(df.pivot_table(index="year", columns="month", values="interpolate"),
             annot=True, cmap="coolwarm", cbar=True, linewidths=0.5)
-plt.title("Interpolation Status (Heatmap)", fontsize=14)
+plt.title("Index Values (Heatmap)", fontsize=14)
 plt.xlabel("Month", fontsize=12)
 plt.ylabel("Year", fontsize=12)
 plt.show()
