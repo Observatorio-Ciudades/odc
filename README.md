@@ -95,7 +95,7 @@ print(f"Results saved to {output_path}")
 ```python
 # Import the module and required libraries
 # Example: loading a shapefile that represents the geometry of a city or region.
-from raster import odc.download_raster_from_pc
+from odc.raster import download_raster_from_pc
 import geopandas as gpd
 import odc
 ```
