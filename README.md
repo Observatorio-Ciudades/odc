@@ -3,7 +3,7 @@
 
 # OdC
 
-The Observatory of Cities (OdC) is an urban science laboratory which seeks to present itself as an innovation platform focused on helping to collect, process, analyze and visualize spatial data related to urban dynamics. 
+The Observatory of Cities (OdC) is an urban science laboratory which seeks to present itself as an innovation platform focused on helping to collect, process, analyze and visualize spatial data related to urban dynamics.
 
 This package streamlines spatial analysis processes by integrating various libraries and developing first-party functions. It is designed as a low-code solution for spatial analysis.
 
@@ -37,7 +37,7 @@ if aoi_gdf.crs is None:
 
 # Step 2: Download the network using odc wrapper function
 print("\n--- Creating OSMnx Network ---")
-# Download osmnx network 
+# Download osmnx network
 G, nodes, edges = odc.download_osmnx_network(aoi_gdf, how='from_bbox')
 
 print(f"Downloaded {len(nodes)} nodes and {len(edges)} edges.")
@@ -111,14 +111,17 @@ plt.grid(alpha=0.3)
 plt.show()
 ```
 
-------------    
+------------
 # Raster Analysis
 
 ## Basic usage example
 
 
 ```python
-# Example: download raster data based on an area of ​​interest (such as a GeoDataFrame with a hexagonal grid) and generate a DataFrame with a summary of the downloaded data.
+
+# Import the module and required libraries
+# Example: loading a shapefile that represents the geometry of a city or region.
+from odc.raster import download_raster_from_pc
 import geopandas as gpd
 import odc
 import matplotlib.pyplot as plt
@@ -183,7 +186,7 @@ plt.show()
 
 # Visualization: Interpolation Values
 plt.figure(figsize=(10, 6))
-sns.heatmap(df.pivot_table(index="year", columns="month", values="interpolate"), 
+sns.heatmap(df.pivot_table(index="year", columns="month", values="interpolate"),
             annot=True, cmap="coolwarm", cbar=True, linewidths=0.5)
 plt.title("Interpolation Status (Heatmap)", fontsize=14)
 plt.xlabel("Month", fontsize=12)
