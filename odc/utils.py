@@ -10,7 +10,7 @@ import osmnx as ox
 import os
 import igraph as ig
 import numpy as np
-from h3 import h3
+import h3
 import shapely
 import logging
 import datetime as dt
