@@ -7,7 +7,9 @@ import osmnx as ox
 from scipy.spatial import cKDTree
 from sklearn.neighbors import BallTree
 
-from typing import Union, Tuple, Optional, Callable
+from networkx import MultiDiGraph
+from geopandas import GeoDataFrame
+from typing import Union, List, Tuple, Optional, Callable
 
 
 from .utils import *
