@@ -13,7 +13,6 @@ from typing import Union, List, Dict, Optional, Callable
 
 from .utils import *
 from .data import *
-from posix import kill
 
 
 def group_points_by_bins(
@@ -319,7 +318,7 @@ def fill_missing_h3_data(
 
                 try:
                     # Get neighbors
-                    neighbor_ids = h3.k_ring(spatial_id, 1)
+                    neighbor_ids = h3.grid_ring(spatial_id, 1)
 
                     # Filter to existing neighbors
                     existing_neighbors = [nid for nid in neighbor_ids
