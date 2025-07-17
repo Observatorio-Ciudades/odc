@@ -1,278 +1,324 @@
-import csv
-import json
-import os
-from io import StringIO
-
 import geopandas as gpd
 import osmnx as ox
 import pandas as pd
 import numpy as np
 import h3
-from shapely.geometry import Polygon, MultiLineString, Point, LineString
+
+from pathlib import Path
+from typing import Union, List, Dict, Optional
 
 import shutil
 
 from . import utils
 
 
-
-def download_graph(polygon, city, network_type="walk", save=True):
+def convert_column_types(
+    df: pd.DataFrame,
+    type_mapping: Dict[str, List[str]]
+) -> pd.DataFrame:
     """
-    Download a graph from a bounding box, and saves it to disk
+    Convert DataFrame columns to specified data types.
 
-    Arguments:
-            polygon (polygon): polygon to use as boundary to download the network
-            city (str): string with the name of the city
-            network_type (str): String with the type of network to download (drive, walk, bike, all_private, all) for more details see OSMnx documentation
-            save (bool): Save the graph to disk or not (default: {True})
+    Parameters:
+        df: Input DataFrame
+        type_mapping: Dictionary mapping data types to column lists
+                     Supported types: 'string', 'integer', 'float', 'boolean', 'datetime'
+                     Example: {'string': ['col1', 'col2'], 'integer': ['col3']}
 
     Returns:
-            nx.MultiDiGraph
+        DataFrame with converted column types
+
+    Raises:
+        ValueError: If unsupported data type is specified
+        KeyError: If specified column doesn't exist in DataFrame
     """
+
+    if df is None or df.empty:
+        raise ValueError("Input DataFrame cannot be None or empty")
+
+    if not isinstance(type_mapping, dict):
+        raise ValueError("type_mapping must be a dictionary")
+
+    # Create a copy to avoid modifying the original DataFrame
+    df_copy = df.copy()
+
+    supported_types = {'string', 'integer', 'float', 'boolean', 'datetime'}
+
+    for data_type, columns in type_mapping.items():
+        if data_type not in supported_types:
+            raise ValueError(f"Unsupported data type: {data_type}. "
+                           f"Supported types: {supported_types}")
+
+        if not isinstance(columns, list):
+            raise ValueError(f"Column list for type '{data_type}' must be a list")
+
+        for col in columns:
+            if col not in df_copy.columns:
+                raise KeyError(f"Column '{col}' not found in DataFrame")
+
+        # Convert columns based on type
+        for col in columns:
+            try:
+                if data_type == "string":
+                    df_copy[col] = df_copy[col].astype("str")
+                elif data_type == "boolean":
+                    df_copy[col] = df_copy[col].astype("bool")
+                elif data_type == "datetime":
+                    df_copy[col] = pd.to_datetime(df_copy[col])
+                else:  # integer or float
+                    df_copy[col] = pd.to_numeric(df_copy[col], downcast=data_type)
+
+                utils.log(f"Converted column '{col}' to {data_type}")
+
+            except Exception as e:
+                utils.log(f"Failed to convert column '{col}' to {data_type}: {e}")
+                raise
+
+    utils.log(f"Successfully converted columns for {len(type_mapping)} data types")
+    return df_copy
+
+
+def clear_directory(
+    directory_path: Union[str, Path],
+) -> Dict[str, int]:
+    """
+    Delete all files and subdirectories from a given directory.
+
+    Parameters:
+        directory_path: Path to the directory to clear
+
+    Returns:
+        Dictionary with counts of files and directories processed
+
+    Raises:
+        ValueError: If directory doesn't exist
+    """
+
+    directory_path = Path(directory_path)
+
+    if not directory_path.exists():
+        raise ValueError(f"Directory does not exist: {directory_path}")
+
+    if not directory_path.is_dir():
+        raise ValueError(f"Path is not a directory: {directory_path}")
+
+    stats = {'files': 0, 'directories': 0, 'errors': 0}
+
     try:
-        G = ox.load_graphml(
-            "../data/raw/network_{}_{}.graphml".format(city, network_type)
-        )
-        utils.log(f"{city} retrived graph")
-        return G
-    except:
-        utils.log(f"{city} graph not in data/raw")
-        G = ox.graph_from_polygon(
-            polygon,
-            network_type=network_type,
-            simplify=True,
-            retain_all=False,
-            truncate_by_edge=False,
-        )
-        utils.log("downloaded")
-        if save:
-            ox.save_graphml(
-                G, filename="raw/network_{}_{}.graphml".format(city, network_type)
+        for item in directory_path.iterdir():
+            try:
+                if item.is_file() or item.is_symlink():
+                    item.unlink()
+                    stats['files'] += 1
+                    utils.log(f"Deleted file: {item}")
+                elif item.is_dir():
+                    shutil.rmtree(item)
+                    stats['directories'] += 1
+                    utils.log(f"Deleted directory: {item}")
+
+            except Exception as e:
+                stats['errors'] += 1
+                utils.log(f"Failed to delete {item}: {e}")
+
+    except PermissionError as e:
+        utils.log(f"Permission denied accessing directory: {e}")
+        raise
+
+    return stats
+
+
+def download_osm_network(
+    area_of_interest: gpd.GeoDataFrame,
+    method: str = 'from_polygon',
+    network_type: str = 'all_private',
+) -> tuple[ox.MultiDiGraph, gpd.GeoDataFrame, gpd.GeoDataFrame]:
+    """
+    Download OSM network data and return graph, nodes, and edges.
+
+    Parameters:
+        area_of_interest: GeoDataFrame defining the area boundary in EPSG:4326
+        method: Method for downloading ('from_polygon' or 'from_bbox')
+        network_type: Type of network to download
+                     ('drive', 'walk', 'bike', 'all_private', 'all')
+
+    Returns:
+        Tuple containing:
+        - NetworkX MultiDiGraph with network topology
+        - GeoDataFrame with network nodes
+        - GeoDataFrame with network edges
+
+    Raises:
+        ValueError: If invalid parameters are provided
+        RuntimeError: If network download fails
+    """
+
+    # Validate inputs
+    if area_of_interest is None or area_of_interest.empty:
+        raise ValueError("Area of interest cannot be None or empty")
+
+    valid_methods = {'from_polygon', 'from_bbox'}
+    if method not in valid_methods:
+        raise ValueError(f"Invalid method '{method}'. Must be one of {valid_methods}")
+
+    valid_network_types = {'drive', 'walk', 'bike', 'all_private', 'all'}
+    if network_type not in valid_network_types:
+        raise ValueError(f"Invalid network_type '{network_type}'. "
+                        f"Must be one of {valid_network_types}")
+
+
+    try:
+        if method == 'from_bbox':
+            # Extract bounding box coordinates
+            bounds = area_of_interest.total_bounds
+            west, south, east, north = bounds
+
+            utils.log(f"Downloading network from bbox: N={north:.5f}, S={south:.5f}, "
+                       f"E={east:.5f}, W={west:.5f}")
+
+            graph = ox.graph_from_bbox(
+                bbox = (north, south, east, west),
+                network_type=network_type,
+                simplify=True,
+                retain_all=False,
+                truncate_by_edge=False
             )
-        return G
 
+        else:  # from_polygon
+            utils.log("Downloading network from polygon boundary")
 
-def df_to_geodf(df, x, y, crs):
-    """
-    Create a GeoDataFrame from a pandas DataFrame
-    Arguments:
-            df (pandas.DataFrame): pandas data frame with lat, lon or x, y, columns
-            x (str): Name of the column that contains the x or Longitud values
-            y (str): Name of the column that contains the y or Latitud values
-            crs (dict): Coordinate reference system to use
-    Returns:
-            geopandas.GeoDataFrame: GeoDataFrame with Points as geometry
-    """
-    df["y"] = df[y].astype(float)
-    df["x"] = df[x].astype(float)
-    geometry = [Point(xy) for xy in zip(df.x, df.y)]
-    return gpd.GeoDataFrame(df, crs=crs, geometry=geometry)
+            graph = ox.graph_from_polygon(
+                area_of_interest.unary_union,
+                network_type=network_type,
+                simplify=True,
+                retain_all=False,
+                truncate_by_edge=False
+            )
 
+        utils.log(f"Successfully downloaded {network_type} network")
 
+    except Exception as e:
+        utils.log(f"Failed to download network: {e}")
+        raise RuntimeError(f"Network download failed: {e}")
 
-def convert_type(df, data_dict):
-    """
-    Converts columns from DataFrame to specified data type
+    # Convert graph to GeoDataFrames
+    nodes, edges = ox.graph_to_gdfs(graph)
+    nodes = nodes.reset_index()
+    edges = edges.reset_index()
 
-    Arguments:
-        df (pandas.DataFrame): DataFrame containing all columns
-        data_dict (dict): Dictionary with the desiered data type as a
-                                key {string, integer, float} and a list of columns.
-                                For example: {'string':[column1,column2],'integer':[column3,column4]}
-    Returns:
-        df (pandas.DataFrame): DataFrame with converted data types for columns
-    """
-    for d in data_dict:
-        if d == "string":
-            for c in data_dict[d]:
-                df[c] = df[c].astype("str")
-        else:
-            for c in data_dict[d]:
-                df[c] = pd.to_numeric(df[c], downcast=d, errors="ignore")
+    utils.log(f"Converted graph to {len(nodes)} nodes and {len(edges)} edges")
 
-    return df
-
-
-def delete_files_from_folder(delete_dir):
-    """
-    The delete_files_from_folder function deletes all files from a given directory.
-    Arguments:
-    delete_dir (str): Specify the directory where the files are to be deleted
-    """
-
-    for filename in os.listdir(delete_dir):
-        file_path = os.path.join(delete_dir, filename)
-        try:
-            if os.path.isfile(file_path) or os.path.islink(file_path):
-                os.unlink(file_path)
-            elif os.path.isdir(file_path):
-                shutil.rmtree(file_path)
-        except Exception as e:
-            utils.log('Failed to delete %s. Reason: %s' % (file_path, e))
-
-
-
-def download_osmnx_network(aoi, how='from_polygon', network_type='all_private'):
-    """Download OSMnx graph, nodes and edges according to a GeoDataFrame area of interest.
-       Based on Script07-download_osmnx.py located in database.
-
-    Args:
-        aoi (geopandas.GeoDataFrame): GeoDataFrame polygon boundary for the area of interest.
-        how (str, optional): Defines the OSMnx function to be used. "from_polygon" will call osmnx.graph.graph_from_polygon,
-                                 while "from_bbox" will call osmnx.features.features_from_bbox. No other choices are accepted in this function,
-                                 for more details see OSMnx documentation.
-        network_type (str, optional): String with the type of network to download (drive, walk, bike, all_private, all) for more details see OSMnx documentation.
-                                        Defaults to 'all_private'.
-
-    Returns:
-        G (networkx.MultiDiGraph): Graph with edges and nodes within boundaries
-		nodes (geopandas.GeoDataFrame): GeoDataFrame for nodes within boundaries
-		edges (geopandas.GeoDataFrame): GeoDataFrame for edges within boundaries
-    """
-
-    # Set crs of area of interest
-    aoi = aoi.to_crs("EPSG:4326")
-
-    if how == 'from_bbox':
-        # Read area of interest as a polygon geometry
-        poly = aoi.geometry
-        # Extracts coordinates from polygon as DataFrame
-        coord_val = poly.bounds
-        # Gets coordinates for bounding box
-        n = coord_val.maxy.max()
-        s = coord_val.miny.min()
-        e = coord_val.maxx.max()
-        w = coord_val.minx.min()
-        utils.log(f"Extracted min and max coordinates from the municipality. Polygon N:{round(n,5)}, S:{round(s,5)}, E{round(e,5)}, W{round(w,5)}.")
-
-        # Downloads OSMnx graph from bounding box
-        G = ox.graph_from_bbox(n, s, e, w,
-                               network_type=network_type,
-                               simplify=True,
-                               retain_all=False,
-                               truncate_by_edge=False)
-        utils.log("Created OSMnx graph from bounding box.")
-
-    elif how == 'from_polygon':
-        # Downloads OSMnx graph from bounding box
-        G = ox.graph_from_polygon(aoi.unary_union,
-                                  network_type=network_type,
-                                  simplify=True,
-                                  retain_all=False,
-                                  truncate_by_edge=False)
-        utils.log("Created OSMnx graph from bounding polygon.")
-
-    else:
-        utils.log
-        ("Invalid argument 'how'.")
-
-    #Transforms graph to nodes and edges Geodataframe
-    nodes, edges = ox.graph_to_gdfs(G)
-    #Resets index to access osmid as a column
-    nodes.reset_index(inplace=True)
-    #Resets index to acces u and v as columns
-    edges.reset_index(inplace=True)
-    print(f"Converted OSMnx graph to {len(nodes)} nodes and {len(edges)} edges GeoDataFrame.")
-
-    # Defines columns of interest for nodes and edges
-    nodes_columns = ["osmid", "x", "y", "street_count", "geometry"]
-    edges_columns = [
-        "osmid",
-        "v",
-        "u",
-        "key",
-        "oneway",
-        "lanes",
-        "name",
-        "highway",
-        "maxspeed",
-        "length",
-        "geometry",
-        "bridge",
-        "ref",
-        "junction",
-        "tunnel",
-        "access",
-        "width",
-        "service",
+    # Define required columns
+    required_node_columns = ["osmid", "x", "y", "street_count", "geometry"]
+    required_edge_columns = [
+        "osmid", "u", "v", "key", "oneway", "lanes", "name", "highway",
+        "maxspeed", "length", "geometry", "bridge", "ref", "junction",
+        "tunnel", "access", "width", "service"
     ]
-    # if column doesn't exist it creates it as nan
-    for c in nodes_columns:
-        if c not in nodes.columns:
-            nodes[c] = np.nan
-            print(f"Added column {c} for nodes.")
-    for c in edges_columns:
-        if c not in edges.columns:
-            edges[c] = np.nan
-            print(f"Added column {c} for edges.")
-    # Filters GeoDataFrames for relevant columns
-    nodes = nodes[nodes_columns]
-    edges = edges[edges_columns]
-    print("Filtered columns.")
 
-    # Converts columns with lists to strings to allow saving to local and further processes.
-    for col in nodes.columns:
-        if any(isinstance(val, list) for val in nodes[col]):
-            nodes[col] = nodes[col].astype('string')
-            print(f"Column: {col} in nodes gdf, has a list in it, the column data was converted to string.")
-    for col in edges.columns:
-        if any(isinstance(val, list) for val in edges[col]):
-            edges[col] = edges[col].astype('string')
-            print(f"Column: {col} in nodes gdf, has a list in it, the column data was converted to string.")
+    # Add missing columns
+    for col in required_node_columns:
+        if col not in nodes.columns:
+            nodes[col] = np.nan
+            utils.log(f"Added missing column '{col}' to nodes")
 
-    # Final format
-    nodes = nodes.set_crs("EPSG:4326")
-    edges = edges.set_crs("EPSG:4326")
-    nodes = nodes.set_index('osmid')
-    edges = edges.set_index(["u", "v", "key"])
+    for col in required_edge_columns:
+        if col not in edges.columns:
+            edges[col] = np.nan
+            utils.log(f"Added missing column '{col}' to edges")
 
-    return G, nodes, edges
+    # Filter to required columns
+    nodes = nodes[required_node_columns]
+    edges = edges[required_edge_columns]
+
+    # Handle list columns by converting to strings
+    for gdf, name in [(nodes, 'nodes'), (edges, 'edges')]:
+        for col in gdf.columns:
+            if col == 'geometry':
+                continue
+            if any(isinstance(val, list) for val in gdf[col].dropna()):
+                gdf[col] = gdf[col].astype('string')
+                utils.log(f"Converted list column '{col}' to string in {name}")
+
+    # Set final format
+    nodes = nodes.set_crs('EPSG:4326').set_index('osmid')
+    edges = edges.set_crs('EPSG:4326').set_index(["u", "v", "key"])
+
+    utils.log("Network processing completed successfully")
+
+    return graph, nodes, edges
 
 
-def create_hexgrid(polygon, hex_res, geometry_col='geometry'):
+def create_hexagonal_grid(
+    geometry: gpd.GeoDataFrame,
+    resolution: int,
+) -> gpd.GeoDataFrame:
     """
-	Takes in a geopandas geodataframe, the desired resolution, the specified geometry column and some map parameters to create a hexagon grid (and potentially plot the hexgrid
+    Create a hexagonal grid covering the input geometry using H3 hexagons.
 
-	Arguments:
-		polygon (geopandas.GeoDataFrame): geoDataFrame to be used
-		hex_res (int): Resolution to use
+    Parameters:
+        geometry: GeoDataFrame containing the area to be covered
+        resolution: H3 resolution level (0-15, higher = smaller hexagons)
 
-	Keyword Arguments:
-		geometry_col (str): column in the geoDataFrame that contains the geometry (default: {'geometry'})
+    Returns:
+        GeoDataFrame with hexagonal grid covering the input geometry
 
-	Returns:
-		all_polys (geopandas.GeoDataFrame): geoDataFrame with the hexbins according to resolution and EPSG:4326
-	"""
+    Raises:
+        ValueError: If invalid parameters are provided
+        RuntimeError: If hexagon creation fails
+    """
 
-    #multiploygon to polygon
-    polygons = polygon[geometry_col].explode(index_parts=True)
+    # Validate inputs
+    if geometry is None or geometry.empty:
+        raise ValueError("Input geometry cannot be None or empty")
 
-    polygons = polygons.reset_index(drop=True)
+    # Ensure WGS84 CRS for H3 compatibility
+    if geometry.crs != "EPSG:4326":
+        geometry = geometry.to_crs("EPSG:4326")
+        utils.log("Converted geometry to EPSG:4326 for H3 compatibility")
 
-    all_polys = gpd.GeoDataFrame()
+    # Handle MultiPolygon by exploding to individual polygons
+    exploded_geoms = geometry[geometry_column].explode(ignore_index=True)
+    exploded_geoms = exploded_geoms.reset_index(drop=True)
 
-    for p in range(len(polygons)):
+    # Collect all hexagons
+    all_hexagons = []
 
-        #create hex grid from GeoDataFrame
-        #for i in range(len(polygons[p])):
-        dict_poly = polygons[p].__geo_interface__
-        hexs = h3.polyfill(dict_poly, hex_res, geo_json_conformant = True)
-        polygonise = lambda hex_id: Polygon(
-                                    h3.h3_to_geo_boundary(
-                                        hex_id, geo_json=True)
-                                        )
+    for idx, geom in enumerate(exploded_geoms):
+        try:
+            # Convert to GeoJSON format for H3
+            geom_dict = geom.__geo_interface__
 
-        poly_tmp = gpd.GeoSeries(list(map(polygonise, hexs)), \
-                                                index=hexs, \
-                                                crs="EPSG:4326" \
-                                                )
-        gdf_tmp = gpd.GeoDataFrame(poly_tmp.reset_index()).rename(columns={'index':f'hex_id_{hex_res}',0:geometry_col})
+            # Get hexagon IDs covering this polygon
+            hex_ids = h3.polygon_to_cells(geom_dict, resolution)
 
-        all_polys = pd.concat([all_polys, gdf_tmp],
-        ignore_index = True, axis = 0)
+            utils.log(f"Generated {len(hex_ids)} hexagons for polygon {idx}")
 
-    all_polys = all_polys.drop_duplicates()
-    all_polys = all_polys.set_geometry('geometry')
-    all_polys.set_crs("EPSG:4326")
+            # Convert hex IDs to polygons
+            for hex_id in hex_ids:
+                hex_boundary = h3.cell_to_boundary(hex_id)
+                hex_polygon = Polygon(hex_boundary)
+                all_hexagons.append({
+                    f'hex_id_{resolution}': hex_id,
+                    'geometry': hex_polygon
+                })
 
-    return all_polys
+        except Exception as e:
+            utils.log(f"Failed to create hexagons for polygon {idx}: {e}")
+            raise RuntimeError(f"Hexagon creation failed: {e}")
+
+    if not all_hexagons:
+        raise RuntimeError("No hexagons were created")
+
+    # Create GeoDataFrame
+    try:
+        result_gdf = gpd.GeoDataFrame(all_hexagons, crs="EPSG:4326")
+        result_gdf = result_gdf.set_geometry('geometry')
+
+        # Remove duplicate hexagons
+        result_gdf = result_gdf.drop_duplicates(subset=[f'hex_id_{resolution}'])
+
+        return result_gdf
+
+    except Exception as e:
+        utils.log(f"Failed to create final GeoDataFrame: {e}")
+        raise RuntimeError(f"GeoDataFrame creation failed: {e}")
