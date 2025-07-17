@@ -152,3 +152,17 @@ def haversine(coord1, coord2):
 	meters = R * c  # output distance in meters
 	km = meters / 1000.0  # output distance in kilometers
 	return meters
+
+
+def is_projected(crs):
+    """
+    Determine if a coordinate reference system is projected or not.
+    This is a convenience wrapper around the pyproj.CRS.is_projected function.
+
+    Arguments:
+    crs (string or pyproj.CRS): the coordinate reference system
+
+    Returns:
+    projected (bool) True if crs is projected, otherwise False
+    """
+    return CRS.from_user_input(crs).is_projected
