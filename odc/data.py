@@ -251,6 +251,7 @@ def download_osm_network(
 def create_hexagonal_grid(
     geometry: gpd.GeoDataFrame,
     resolution: int,
+    geometry_column: str = 'geometry'
 ) -> gpd.GeoDataFrame:
     """
     Create a hexagonal grid covering the input geometry using H3 hexagons.
