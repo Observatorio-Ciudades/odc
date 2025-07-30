@@ -28,15 +28,24 @@ def hex_plot(ax, gdf_data, gdf_boundary, gdf_edges, column , title,save_png=Fals
 		dpi (int) resolution to use (default: {300})
 		transparent (bool): save with transparency or not (default: {True})
 	"""
-	divider = make_axes_locatable(ax)
-	cax = divider.append_axes("bottom", size="5%", pad=0.1)
-	gdf_data[gdf_data[column]<=0].plot(ax=ax,color='#2b2b2b', alpha=0.95, linewidth=0.1, edgecolor='k', zorder=0)
+	divider = make_axes_locatable(ax) # Creates a divider for the axes
+	cax = divider.append_axes("bottom", size="5%", pad=0.1) # Creates an axes for the colorbar (cax=cax). The size is size% of the main ax, while there's a spacing (pad) between the main ax and the colorbar
+
+	# Plot data
+	if len(gdf_data[gdf_data[column]<=0]) > 0:
+		gdf_data[gdf_data[column]<=0].plot(ax=ax,color='#2b2b2b', alpha=0.95, linewidth=0.1, edgecolor='k', zorder=0)
 	gdf_data[gdf_data[column]>0].plot(ax=ax,column=column, cmap='magma_r',vmax=1000,zorder=1,legend=True,cax=cax,legend_kwds={'label':'Distancia (m)','orientation': "horizontal"})
+	# Plot boundary
 	gdf_boundary.boundary.plot(ax=ax,color='#f8f8f8',zorder=2,linestyle='--',linewidth=0.5)
-	gdf_edges[(gdf_edges['highway']=='motorway') | (gdf_edges['highway']=='motorway_link')].plot(ax=ax,color='#898989',alpha=0.5,linewidth=2.5,zorder=3)
-	gdf_edges[(gdf_edges['highway']=='primary') | (gdf_edges['highway']=='primary_link')].plot(ax=ax,color='#898989',alpha=0.5,linewidth=1.5,zorder=3)
+	# Plot edges
+	if len(gdf_edges[(gdf_edges['highway']=='motorway') | (gdf_edges['highway']=='motorway_link')]) > 0:
+		gdf_edges[(gdf_edges['highway']=='motorway') | (gdf_edges['highway']=='motorway_link')].plot(ax=ax,color='#898989',alpha=0.5,linewidth=2.5,zorder=3)
+	if len(gdf_edges[(gdf_edges['highway']=='primary') | (gdf_edges['highway']=='primary_link')]) > 0:
+		gdf_edges[(gdf_edges['highway']=='primary') | (gdf_edges['highway']=='primary_link')].plot(ax=ax,color='#898989',alpha=0.5,linewidth=1.5,zorder=3)
+	# Format plot
 	ax.set_title(f'{title}',fontdict={'fontsize':30})
 	ax.axis('off')
+	# Save or show plot
 	if save_png:
 		plt.savefig('../output/figures/{}.png'.format(name),dpi=dpi,transparent=transparent)
 	if save_pdf:
