@@ -288,6 +288,8 @@ def create_hexagonal_grid(
         try:
             # Convert to GeoJSON format for H3
             geom_dict = geom.__geo_interface__
+            geom_dict = geom_dict['features'][0]['geometry']
+            geom_dict = h3.geo_to_h3shape(geom_dict)
 
             # Get hexagon IDs covering this polygon
             hex_ids = h3.polygon_to_cells(geom_dict, resolution)
