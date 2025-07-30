@@ -1,3 +1,4 @@
+import shapely
 import geopandas as gpd
 import osmnx as ox
 import pandas as pd
@@ -299,7 +300,7 @@ def create_hexagonal_grid(
             # Convert hex IDs to polygons
             for hex_id in hex_ids:
                 hex_boundary = h3.cell_to_boundary(hex_id)
-                hex_polygon = Polygon(hex_boundary)
+                hex_polygon = shapely.Polygon(hex_boundary)
                 all_hexagons.append({
                     f'hex_id_{resolution}': hex_id,
                     'geometry': hex_polygon
