@@ -300,6 +300,7 @@ def create_hexagonal_grid(
             # Convert hex IDs to polygons
             for hex_id in hex_ids:
                 hex_boundary = h3.cell_to_boundary(hex_id)
+                hex_boundary = [(lon,lat) for lat, lon in hex_boundary]
                 hex_polygon = shapely.Polygon(hex_boundary)
                 all_hexagons.append({
                     f'hex_id_{resolution}': hex_id,
