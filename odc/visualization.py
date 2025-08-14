@@ -14,7 +14,7 @@ from textwrap import wrap
 import matplotlib.cm as cm
 import matplotlib.colors as colors
 import matplotlib.colorbar as colorbar
-from matplotlib.colors import TwoSlopeNorm #Tendency colorbar red to green
+from matplotlib.colors import TwoSlopeNorm #Tendency colorbar with both positive and negative values
 # Import logo image
 import matplotlib.image as mpimg
 # Place logo image above plot
@@ -713,6 +713,9 @@ def plot_hex_ndvi(data_gdf, column, location_name, ax,
         vmax = data_gdf[column].max()
         if vmin < 0 < vmax: #Regular case, there are negative and positive values in tendency
             cmap = plt.get_cmap('RdYlGn')
+            # Create symmetrical norm scale (Prevents presenting small vmins or vmaxs with dark colors)
+            abs_max = max(abs(vmin), abs(vmax))
+            vmin, vmax = -abs_max, abs_max
             norm = TwoSlopeNorm(vmin=vmin, vcenter=0, vmax=vmax)
         elif vmin < vmax < 0: #Non-regular case, there are only negative values in tendency
             cmap = plt.get_cmap('Reds_r')
@@ -723,7 +726,7 @@ def plot_hex_ndvi(data_gdf, column, location_name, ax,
         
         # --- PLOT
         # Plot proximity data USING LEGEND=FALSE (SETTING IT  MANUALLY)
-        data_gdf.plot(ax=ax, column=column, cmap=cmap, legend=False,
+        data_gdf.plot(ax=ax, column=column,cmap=cmap,vmin=vmin,vmax=vmax,legend=False,
                       linestyle=data_linestyle, linewidth=data_linewidth,
                       edgecolor=data_edgecolor, zorder=1)
         # Plot proximity data using the viridis color palette directly 
@@ -764,6 +767,190 @@ def plot_hex_ndvi(data_gdf, column, location_name, ax,
         # --- PLOT
         # Plot proximity data using the viridis color palette reversed
         data_gdf.plot(ax=ax,column=f'{column}_cat',cmap='YlGn',legend=True,legend_kwds={'loc':'lower left'},linestyle=data_linestyle,linewidth=data_linewidth,edgecolor=data_edgecolor,zorder=1)
+    
+    # --------------- OPTIONAL COMPLEMENTS (Area of interest boundary and streets)
+    # Plot boundary if available
+    if plot_boundary[0]:
+        boundary_gdf = plot_boundary[1].copy()
+        boundary_gdf.boundary.plot(ax=ax,color='#bebebe',linestyle='--',linewidth=0.75,zorder=2)
+    # Plot edges if available
+    if plot_osmnx_edges[0]:
+        edges_gdf = plot_osmnx_edges[1].copy()
+        # Plot edges (Main)
+        edges_shown_a = ['trunk','trunk_link','motorway','motorway_link']
+        edges_gdf_main = edges_gdf[edges_gdf['highway'].isin(edges_shown_a)].copy()
+        if len(edges_gdf_main) > 0:
+            edges_main=True
+            edges_gdf_main.plot(ax=ax,color='#000000',alpha=0.5,linewidth=1.0,zorder=3)
+        # Plot edges (Primary and secondary)
+        edges_shown_b = ['primary','primary_link']#,'secondary','secondary_link']
+        edges_gdf_primary = edges_gdf[edges_gdf['highway'].isin(edges_shown_b)].copy()
+        if len(edges_gdf_primary) > 0:
+            edges_primary=True
+            edges_gdf_primary.plot(ax=ax,color='#000000',alpha=0.5,linewidth=0.50,zorder=3)
+    
+	# --------------- FINAL PLOT FORMAT
+    # FORMAT - AX SIZE - Edit ax size to fit specified gdf exclusively using square_bounds() function
+    # If specified 'boundary' and boundary_gdf available
+    if (adjust_to[0] == 'boundary') and (plot_boundary[0]):
+        square_bounds(ax, boundary_gdf, adjust_to[1])
+    # Elif specified 'edges' and edges_gdf available
+    elif (adjust_to[0] == 'edges') and (plot_osmnx_edges[0]):
+        if edges_main and edges_primary:
+            square_bounds(ax, pd.concat([edges_gdf_main,edges_gdf_primary]), adjust_to[1])
+        elif edges_main:
+            square_bounds(ax, edges_gdf_main, adjust_to[1])
+        elif edges_primary:
+            square_bounds(ax, edges_gdf_primary, adjust_to[1])
+        else:
+            square_bounds(ax, data_gdf, adjust_to[1])
+    # Else, if specified something else, use data_gdf
+    else:
+        square_bounds(ax, data_gdf, adjust_to[1])
+
+    # FORMAT - OBSERVATORY'S PLOT FORMAT - Controls positioning, style and sizing for main title, legend, grid and logo.
+    if legend_type=='colorbar':
+        observatory_plot_format(ax=ax,
+                                plot_title=plot_title,
+                                legend_title = f'Column: {column}.',
+                                legend_type=legend_type,
+                                cmap_args=[cmap,norm],
+                                grid=False
+                                )
+    else:
+        observatory_plot_format(ax=ax,
+                                plot_title=plot_title,
+                                legend_title = f'Column: {column}.',
+                                legend_type=legend_type,
+                                cmap_args=[],
+                                grid=False
+                                )
+    
+    # --------------- SAVING CONFIGURATIONS
+    # Save or show plot
+    if save_png[0]:
+        plt.savefig(save_png[1],dpi=png_dpi,transparent=png_transparency)
+    if save_pdf[0]:
+        plt.savefig(save_pdf[1])
+
+
+def plot_hex_temperature(data_gdf, column, location_name, ax,
+                         plot_osmnx_edges = (False, ''),
+                         plot_boundary = (False, ''),
+                         adjust_to = ('',[0.05,0.05]),
+                         save_png = (False, '../output/figures/plot.png'),
+                         png_transparency = False,
+                         png_dpi = 300,
+                         save_pdf = (False, '../output/figures/plot.pdf'),
+                        ):
+    """
+    This function creates a plot designed to show ndvi analysis values.
+    
+    Arguments:
+         data_gdf (geopandas.GeoDataFrame): GeoDataFrame with the data to be plotted. 
+         column (str): Name of the column with the data to plot from the data_gdf GeoDataFrame.
+                       This function plots either temperature anomaly (Difference between each hex's mean temperature and the overall city's mean temperature) or temperature tendency (direction of change over time by hex).
+                       column="temperature_tend" plots temperature tendency. Any other value plots temperature anomaly by calculating and changing the column name provided to 'temperature_anomaly'.
+         location_name (str): Name of the location (to be added on the plot title).
+         ax (matplotlib.axes): ax to use in the plot.
+    
+    Keyword Arguments:
+        plot_osmnx_edges (tuple, optional): Tuple containing boolean on position [0].
+                                            If true, a gdf can be specified on position [1]. 
+                                            The gdf must contain edges from Open Street Map with a column named 'highway' since the edges are shown according 'highway' values.
+                                            Defaults to (False, '')
+        plot_boundary (tuple, optional): Tuple containing boolean on position [0]. 
+                                         If true, a gdf can be specified on position [1] and a boundary is ploted.
+                                         Defaults to (False, '')
+        adjust_to (tuple, optional): Argument to be passed to function square_bounds().
+                                     Tupple containing string on position [0]. Passing 'boundary' adjustes zoom to boundary if provided, passing'edges' adjustes zoom to edges if provided, other strings adjustes zoom to data_gdf. 
+                                     The image boundaries will be adjusted to form a square centered on the previously specified gdf.
+                                     Position [1] must contain a list with two numbers. The first will expand the x axis and the second will expand the y axis.
+                                     Example: ('boundary',[0.10,0.05]) sets the bounds of the image as a square around the boundary_gdf from plot_boundary[1] plus a 10% expansion on the x-axis and a 5% expansion on the y-axis.
+        save_png (tuple, optional): Tupple containing boolean on position [0].
+                                    If true, a string can be specified on position [1] indicating the directory and file name where the png is saved.
+                                    Defaults to (False, '../output/figures/plot.png')
+        png_transparency (bool): Saves the png with transparency or not. Defaults to False.
+        png_dpi (int): Sets the resolution to be used to save the png. Defaults to 300.
+        save_pdf (tuple, optional): Tupple containing boolean on position [0].
+                                    If true, a string can be specified on position [1] indicating the directory and file name where the pdf is saved.
+                                    Defaults to (False, '../output/figures/plot.pdf') 
+    """
+
+    
+    # --------------- GENERAL PLOT STYLE
+    data_linestyle = '-'
+    data_linewidth = 0.35
+    data_edgecolor = 'white'
+    
+    # --------------- FOR TENDENCY (temperature_tend)
+    # (temperature_tend indicates the data's tendency analysed in all available years)
+    if column=='temperature_tend':
+        # --- TITLE
+        # Create plot title
+        plot_title = f"Tendency of temperature data in {location_name.capitalize()}."
+        # --- LEGEND - COLOR BAR
+        legend_type='colorbar'
+        # Define cmap and normalization
+        vmin = data_gdf[column].min()
+        vmax = data_gdf[column].max()
+        # Define norm case
+        if vmin < 0 < vmax: #Regular case, there are negative and positive values in tendency
+            cmap = plt.get_cmap('RdBu_r')
+            # Create symmetrical norm scale (Prevents presenting small vmins or vmaxs with dark colors)
+            abs_max = max(abs(vmin), abs(vmax))
+            vmin, vmax = -abs_max, abs_max
+            norm = TwoSlopeNorm(vmin=vmin, vcenter=0, vmax=vmax)
+        elif vmin < vmax < 0: #Non-regular case, there are only negative values in tendency
+            cmap = plt.get_cmap('Blues_r')
+            norm = colors.Normalize(vmin=vmin, vmax=vmax)
+        else: #Non-regular case, there are only positive values in tendency
+            cmap = plt.get_cmap('Reds')
+            norm = colors.Normalize(vmin=vmin, vmax=vmax)
+        # --- PLOT
+        # Plot proximity data USING LEGEND=FALSE (SETTING IT  MANUALLY)
+        data_gdf.plot(ax=ax, column=column, cmap=cmap, vmin=vmin, vmax=vmax, legend=False,
+                      linestyle=data_linestyle, linewidth=data_linewidth,
+                      edgecolor=data_edgecolor, zorder=1) 
+
+    # --------------- FOR ANOMALY (temperature_anomaly)
+    # (temperature_anomaly indicates the difference between the temperature_mean of each hex and the overall (city) mean.
+    else:
+        # Rewrite column, no other values are permitted.
+        column='temperature_anomaly'
+        # --- TITLE
+        # Set plot title according to column used
+        plot_title = f"Temperature difference between each hex's mean and overall mean in {location_name.capitalize()}."
+        # --- LEGEND - CATEGORIZED
+        legend_type='categorized'
+        # Calculate anomaly (difference between mean in each hex and city's mean)
+        mean_city_temperature = data_gdf.temperature_mean.mean()
+        data_gdf['temperature_anomaly'] = data_gdf['temperature_mean'] - mean_city_temperature
+        # Categorize anomaly
+        classif_bins = [-100,-3.5,-1.5,-0.5,0.5,1.5,3.5,100]
+        data_gdf['anomaly_class'] = pd.cut(data_gdf['temperature_anomaly'],
+                                           bins=classif_bins,
+                                           labels=[-3, -2, -1, 0, 1, 2, 3],
+                                           include_lowest=True).astype(int)
+        classes_dict = {3:"1. More temperature",
+                        2:"2.",
+                        1:"3.",
+                        0:"4. Near overall mean",
+                        -1:"5.",
+                        -2:"6.",
+                        -3:f"7. Less temperature"
+                       }
+        data_gdf['anomaly_bins'] = data_gdf['anomaly_class'].map(classes_dict)
+        # Define order and convert col into ordered category
+        categories = list(classes_dict.values())
+        data_gdf['anomaly_bins'] = pd.Categorical(data_gdf['anomaly_bins'],
+                                                  categories=categories,
+                                                  ordered=True)
+        # Force categorical order
+        data_gdf.sort_values(by='anomaly_bins', inplace=True)
+        # --- PLOT
+        # Plot temperature anomaly data using the viridis color palette reversed
+        data_gdf.plot(ax=ax,column='anomaly_bins',cmap='RdBu',legend=True,legend_kwds={'loc':'lower left'},linestyle=data_linestyle,linewidth=data_linewidth,edgecolor=data_edgecolor,zorder=1)
     
     # --------------- OPTIONAL COMPLEMENTS (Area of interest boundary and streets)
     # Plot boundary if available
