@@ -1,3 +1,4 @@
+import shapely
 import geopandas as gpd
 import osmnx as ox
 import pandas as pd
@@ -251,6 +252,7 @@ def download_osm_network(
 def create_hexagonal_grid(
     geometry: gpd.GeoDataFrame,
     resolution: int,
+    geometry_column: str = 'geometry'
 ) -> gpd.GeoDataFrame:
     """
     Create a hexagonal grid covering the input geometry using H3 hexagons.
@@ -287,6 +289,8 @@ def create_hexagonal_grid(
         try:
             # Convert to GeoJSON format for H3
             geom_dict = geom.__geo_interface__
+            geom_dict = geom_dict['features'][0]['geometry']
+            geom_dict = h3.geo_to_h3shape(geom_dict)
 
             # Get hexagon IDs covering this polygon
             hex_ids = h3.polygon_to_cells(geom_dict, resolution)
@@ -296,7 +300,8 @@ def create_hexagonal_grid(
             # Convert hex IDs to polygons
             for hex_id in hex_ids:
                 hex_boundary = h3.cell_to_boundary(hex_id)
-                hex_polygon = Polygon(hex_boundary)
+                hex_boundary = [(lon,lat) for lat, lon in hex_boundary]
+                hex_polygon = shapely.Polygon(hex_boundary)
                 all_hexagons.append({
                     f'hex_id_{resolution}': hex_id,
                     'geometry': hex_polygon
