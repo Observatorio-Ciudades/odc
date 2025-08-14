@@ -1,9 +1,170 @@
 import geopandas as gpd
 import pandas as pd
-from data import *
 
+from .data import *
+from .utils import *
 
 def socio_polygon_to_points(
+    points: gpd.GeoDataFrame,
+    gdf_socio: gpd.GeoDataFrame,
+    column_start: int = 0,
+    column_end: int = -1,
+    cve_column: str = "CVEGEO",
+    avg_columns: Optional[List[str]] = None,
+    target_crs: str = "EPSG:4326"
+) -> gpd.GeoDataFrame:
+    """
+    Assign proportional sociodemographic data from polygons to points within each polygon.
+
+    This function distributes sociodemographic attributes from polygon areas (AGEBs)
+    to point locations within those polygons. For most attributes, the values are
+    divided proportionally based on the number of points in each polygon. Attributes
+    specified in avg_columns are averaged instead of divided.
+
+    Parameters
+    ----------
+    points : geopandas.GeoDataFrame
+        GeoDataFrame containing point geometries to receive sociodemographic data
+    gdf_socio : geopandas.GeoDataFrame
+        GeoDataFrame containing polygon geometries with sociodemographic attributes
+    column_start : int, default 0
+        Starting column index for sociodemographic data in gdf_socio
+    column_end : int, default -1
+        Ending column index for sociodemographic data in gdf_socio.
+        If -1, uses all columns from column_start to end
+    cve_column : str, default "CVEGEO"
+        Column name containing unique identifiers for polygons
+    avg_columns : list of str, optional
+        Column names that should be averaged rather than proportionally divided.
+        These typically include rates, percentages, or intensive variables
+    target_crs : str, default "EPSG:4326"
+        Target coordinate reference system for the output
+
+    Returns
+    -------
+    geopandas.GeoDataFrame
+        Input points GeoDataFrame with added sociodemographic attributes
+
+    Raises
+    ------
+    KeyError
+        If specified columns don't exist in the data
+
+    """
+
+
+    if cve_column not in gdf_socio.columns:
+        raise KeyError(f"Column '{cve_column}' not found in gdf_socio")
+
+    # Handle column indices
+    if column_end == -1:
+        column_end = len(gdf_socio.columns)
+
+    if column_start < 0 or column_end > len(gdf_socio.columns) or column_start >= column_end:
+        raise ValueError(f"Invalid column range: start={column_start}, end={column_end}, "
+                        f"total_columns={len(gdf_socio.columns)}")
+
+    # Handle avg_columns parameter
+    if avg_columns is None:
+        avg_columns = []
+
+    # Validate avg_columns exist in the data
+    socio_columns = gdf_socio.columns.tolist()[column_start:column_end]
+    invalid_avg_columns = [col for col in avg_columns if col not in socio_columns]
+    if invalid_avg_columns:
+        log(f"avg_columns not found in data: {invalid_avg_columns}")
+        avg_columns = [col for col in avg_columns if col in socio_columns]
+
+    try:
+        # Step 1: Calculate number of nodes within each polygon
+        log(f"Performing spatial join between {len(nodes)} nodes and {len(gdf_socio)} polygons")
+
+        # Ensure both GeoDataFrames have the same CRS for spatial join
+        if points.crs != gdf_socio.crs:
+            log(f"CRS mismatch: nodes ({points.crs}) vs gdf_socio ({gdf_socio.crs})")
+            points_aligned = points.to_crs(gdf_socio.crs)
+        else:
+            points_aligned = points
+
+        # Spatial join to find which nodes fall within which polygons
+        joined = gpd.sjoin(points_aligned, gdf_socio[[cve_column, 'geometry']], how='left')
+
+        # Count nodes per polygon
+        point_count = (
+            joined.groupby(cve_column, dropna=False)
+            .size()
+            .reset_index(name='points_count')
+        )
+
+        # Check for nodes that don't fall within any polygon
+        points_without_polygon = joined[cve_column].isna().sum()
+        if points_without_polygon > 0:
+            log(f"{points_without_polygon} points don't fall within any polygon")
+
+        log(f"Found points in {len(point_count)} polygons")
+
+        # Step 2: Merge sociodemographic data with point counts
+        socio_with_counts = pd.merge(
+            gdf_socio,
+            point_count,
+            on=cve_column,
+            how='left'
+        ).copy()
+
+        # Handle polygons with no points
+        socio_with_counts['points_count'] = socio_with_counts['points_count'].fillna(0)
+
+        # Step 3: Calculate proportional values for each column
+        log(f"Processing {len(socio_columns)} sociodemographic columns")
+
+        for col in socio_columns:
+            if col in ['geometry', cve_column]:  # Skip non-data columns
+                continue
+
+            # Convert to numeric, handling any non-numeric values
+            socio_with_counts[col] = pd.to_numeric(socio_with_counts[col], errors='coerce')
+
+            # Skip division for columns with zero points (would result in inf/NaN)
+            mask_has_points = socio_with_counts['nodes_count'] > 0
+
+            if col in avg_columns:
+                # For average columns, keep the original value (don't divide)
+                log(f"Column '{col}' will be averaged (not divided)")
+            else:
+                # For other columns, divide by number of nodes
+                socio_with_counts.loc[mask_has_points, col] = (
+                    socio_with_counts.loc[mask_has_points, col] /
+                    socio_with_counts.loc[mask_has_points, 'nodes_count']
+                )
+
+        # Step 4: Ensure target CRS
+        if socio_with_counts.crs != target_crs:
+            socio_with_counts = socio_with_counts.to_crs(target_crs)
+
+        # Step 5: Spatial join nodes with processed sociodemographic data
+        if points_aligned.crs != target_crs:
+            points_aligned = points_aligned.to_crs(target_crs)
+
+        result = gpd.sjoin(points_aligned, socio_with_counts, how='left')
+
+        # Step 6: Clean up result
+        # Remove helper columns and spatial join artifacts
+        columns_to_drop = ['nodes_count', 'index_right']
+        columns_to_drop = [col for col in columns_to_drop if col in result.columns]
+
+        if columns_to_drop:
+            result = result.drop(columns=columns_to_drop)
+
+        logger.info(f"Successfully assigned sociodemographic data to {len(result)} nodes")
+
+        return result
+
+    except Exception as e:
+        logger.error(f"Error in socio_polygon_to_points: {str(e)}")
+        raise
+
+
+def socio_polygon_to_points_old(
 	nodes,
 	gdf_socio,
 	column_start=0,
