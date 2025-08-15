@@ -282,21 +282,33 @@ def kepler_config():
 
 	return config, config_idx
 
+
 def square_bounds(ax, bounds_gdf, boundary_expansion=[0.05,0.05]):
-    
     """
-    This function takes an ax, a gdf and a list with two numeric values as input and modifies the ax's boundaries to set a squared bounds around bounds_gdf.
-    These bounds can be expanded (symmetrically) using values from boundary_expansion.
+    Format ax to have squared bounds around a given GeoDataFrame's geometry.
+
+    This function takes an ax and modifies the its boundaries to set a squared boundary
+    around the geometry of a given GeoDataFrame. These bounds can be expanded or contracted 
+    using values from boundary_expansion. This expansion is applied symmetrically, keeping the 
+    bounds_gdf centered.
     
-    Arguments:
-         ax (matplotlib.axes): ax to modify using ax.set_xlim() and  ax.set_ylim().
-         bounds_gdf (geopandas.GeoDataFrame): GeoDataFrame with the geometry to be considered in the formation of the squared bounds.
-         boundary_expansion (list,optional): List with two numeric values that represent percentages used to expand the squared-boundary plot symmetrically. 
-                                             The first digit expands the x-axis and the second digit expands the y-axis.
-                                             e.g. [0.05,0.10] would expand by 5% the horizontal bounds (2.5% to the left, 2.5% to the right)
-                                             and by 10% the vertical bounds (5% to the bottom, 5% to the top). Defaults to [0.05,0.05].
-     """
-    
+    Parameters
+    ----------
+    ax: matplotlib.axes
+        ax to be modified using ax.set_xlim() and ax.set_ylim().
+    bounds_gdf: geopandas.GeoDataFrame
+        GeoDataFrame with the geometry from which the initial bounding box is created.
+    boundary_expansion: list, default [0.05,0.05]
+        List with two numeric values that represent percentages used to expand the squared-boundary plot symmetrically.
+        The first digit expands the x-axis and the second digit expands the y-axis.
+        e.g. [0.05,0.10] would expand by 5% the horizontal bounds (2.5% to the left, 2.5% to the right)
+        and by 10% the vertical bounds (5% to the bottom, 5% to the top).
+
+    Returns
+    -------
+    None, modifies ax.
+
+    """
     # Calculate bounds_gdf's current bounding box
     minx, miny, maxx, maxy = bounds_gdf.total_bounds
     
@@ -340,27 +352,41 @@ def square_bounds(ax, bounds_gdf, boundary_expansion=[0.05,0.05]):
     ax.set_ylim(expanded_square_miny, expanded_square_maxy)
 
 
-def observatory_plot_format(ax, plot_title, legend_title, legend_type, cmap_args=[], grid=False): 
+def observatory_plot_format(ax, plot_title, legend_title, legend_type, cmap_args=[], grid=False):
+    """
+    Format the plot to the observatory's style:
+
+    This function positions the title on the top left corner of the plot, formats the legend title in bold, 
+    and places OdC's logo on the bottom right corner of the plot.
+
+    NOTE: Use this function after plotting all elements on it.
+        Since matplotlib updates the layout size and proportions to the elements inserted onto the map, 
+        this function must be used as a final plot formatting, after plotting all map elements.
+    
+    Parameters
+    ----------
+    ax: matplotlib.axes
+        ax to be fit to the observatory's style.
+    plot_title: str
+        Text to be set as main plot title.
+    legend_title: str
+        Text to be set as legend title.
+    legend_type: str
+        Must be either 'categorized' or 'colorbar'. Edits the legend according to its type.
+        For 'categorized' the legend is edited using matplotlib.legend.Legend.
+        For 'colorbar' the legend is edited using matplotlib.colorbar.ColorbarBase.
+    cmap_agrs: list, default []
+        Necessary if legend_type='colormap', this argument must contain two values used to create the colorbar:
+        - The first element must be the previously generated colormap (which can be obtained using plt.get_cmap(''))
+        - The second element must be the previously generated norm colors (which can be obtained using colors.Normalize())
+    grid: bool, default False
+        If true turns on coordinates grid.
+
+    Returns
+    -------
+    None, modifies ax.
     
     """
-    This formats plots to the observatory's style:
-    - Title on the top left corner of the plot.
-    - Legend title in bold.
-    - OdC's logo on the bottom right corner of the plot.
-
-    IMPORTANT FUNCTIONALITY NOTE: Since matplotlib updates the layout size and proportions to the elements inserted onto the map, this function must be used as a final plot formatting, after plotting all map elements.
-    
-    Arguments:
-         ax (matplotlib.axes): ax of interest.
-         plot_title (str): Text to be set as main plot title.
-         legend_title (str): Text to be set as legend title.
-         legend_type (str): Must be either 'categorized' or 'colorbar'. Edits the legend according to its type.
-         cmap_args (list, optional): Necessary if legend_type='colormap', must contain two values used to create the colorbar:
-                                     - The first element must be the previously generated colormap (which can be obtained using plt.get_cmap(''))
-                                     - The second element must be the previously generated norm colors (which can be obtained using colors.Normalize(vmin=vmin, vmax=vmax))
-                                     Defaults to [].
-         grid (bool, optional): If true turns on coordinates grid. Defaults to False.
-     """
     ##########################################################################################
     # STEP 1: AX DIMENSIONS
     # Calculate current ax width, height and larger size (Relevant values used in title text wrapping, legent text sizing and image zoom calculation)
@@ -395,7 +421,6 @@ def observatory_plot_format(ax, plot_title, legend_title, legend_type, cmap_args
     ##########################################################################################
     # STEP 3: LEGEND TITLE FORMAT   
     # LEGEND TITLE FORMAT - Edit legend text size
-    
     legend_fontsize = int(ax_width_px / 75)
     if legend_type == 'categorized':
         # Modify categorized legend, which is a matplotlib.legend.Legend and can be accessed using ax.get_legend()
@@ -454,7 +479,8 @@ def observatory_plot_format(ax, plot_title, legend_title, legend_type, cmap_args
                         box_alignment=img_position)  # Align image
     # Add image to ax
     ax.add_artist(ab)
-    
+
+
 def plot_hex_proximity(data_gdf, column, location_name, ax,
                        plot_osmnx_edges = (False, ''),
                        plot_boundary = (False, ''),
