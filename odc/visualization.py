@@ -285,7 +285,7 @@ def kepler_config():
 
 def square_bounds(ax, bounds_gdf, boundary_expansion=[0.05,0.05]):
     """
-    Format ax to have squared bounds around a given GeoDataFrame's geometry.
+    Formats a ax's boundaries in order to set squared bounds around a given GeoDataFrame's geometry.
 
     This function takes an ax and modifies the its boundaries to set a squared boundary
     around the geometry of a given GeoDataFrame. These bounds can be expanded or contracted 
@@ -298,8 +298,9 @@ def square_bounds(ax, bounds_gdf, boundary_expansion=[0.05,0.05]):
         ax to be modified using ax.set_xlim() and ax.set_ylim().
     bounds_gdf: geopandas.GeoDataFrame
         GeoDataFrame with the geometry from which the initial bounding box is created.
-    boundary_expansion: list, default [0.05,0.05]
+    boundary_expansion: list, default [0.05,0.05].
         List with two numeric values that represent percentages used to expand the squared-boundary plot symmetrically.
+        If no expansion is required, use [0,0], but note that the bounds will be very tight around the bounds_gdf.
         The first digit expands the x-axis and the second digit expands the y-axis.
         e.g. [0.05,0.10] would expand by 5% the horizontal bounds (2.5% to the left, 2.5% to the right)
         and by 10% the vertical bounds (5% to the bottom, 5% to the top).
@@ -354,7 +355,7 @@ def square_bounds(ax, bounds_gdf, boundary_expansion=[0.05,0.05]):
 
 def observatory_plot_format(ax, plot_title, legend_title, legend_type, cmap_args=[], grid=False):
     """
-    Format the plot to the observatory's style:
+    Formats the plot to the observatory's style:
 
     This function positions the title on the top left corner of the plot, formats the legend title in bold, 
     and places OdC's logo on the bottom right corner of the plot.
@@ -375,11 +376,11 @@ def observatory_plot_format(ax, plot_title, legend_title, legend_type, cmap_args
         Must be either 'categorized' or 'colorbar'. Edits the legend according to its type.
         For 'categorized' the legend is edited using matplotlib.legend.Legend.
         For 'colorbar' the legend is edited using matplotlib.colorbar.ColorbarBase.
-    cmap_agrs: list, default []
+    cmap_agrs: list, default [].
         Necessary if legend_type='colormap', this argument must contain two values used to create the colorbar:
         - The first element must be the previously generated colormap (which can be obtained using plt.get_cmap(''))
         - The second element must be the previously generated norm colors (which can be obtained using colors.Normalize())
-    grid: bool, default False
+    grid: bool, default False.
         If true turns on coordinates grid.
 
     Returns
@@ -460,7 +461,7 @@ def observatory_plot_format(ax, plot_title, legend_title, legend_type, cmap_args
             project_root = parent
             break
     # Read image from dir starting in project_root
-    img_dir = str(project_root)+'/data/external/odc_logo/LOGO OC_3.png'
+    img_dir = str(project_root)+'/data/external/logo_odc.png'
     img = mpimg.imread(img_dir)
     # Calculate image zoom a) Get current image extent
     img_width_px = img.shape[1]
@@ -481,7 +482,8 @@ def observatory_plot_format(ax, plot_title, legend_title, legend_type, cmap_args
     ax.add_artist(ab)
 
 
-def plot_hex_proximity(data_gdf, column, location_name, ax,
+def plot_hex_proximity(data_gdf, location_name, ax,
+                       column='mean_time',
                        plot_osmnx_edges = (False, ''),
                        plot_boundary = (False, ''),
                        adjust_to = ('',[0.05,0.05]),
@@ -491,37 +493,55 @@ def plot_hex_proximity(data_gdf, column, location_name, ax,
                        save_pdf = (False, '../output/figures/plot.pdf'),
                       ):
     """
-    This function creates a plot designed to show proximity analysis values.
+    Creates a plot showing proximity analysis data.
+
+    This function can be used to plot a classical proximity analysis (time to amenities), the amenity count (how many amenities 
+    can be found on a given walking time) or a sigmodial analysis. The function defaults to mean proximity analysis.
     
-    Arguments:
-         data_gdf (geopandas.GeoDataFrame): GeoDataFrame with the data to be plotted.
-         column (str): Name of the column with the data to plot from the data_gdf GeoDataFrame.
-         location_name (str): Name of the location (to be added on the plot title).
-         ax (matplotlib.axes): ax to use in the plot.
+    Parameters
+    ----------
+    data_gdf: geopandas.GeoDataFrame
+        GeoDataFrame with the proximity analysis data from OdC.
+    location_name: str
+        Text containing the location (e.g. city name), used to be added in the main plot title.        
+    ax: matplotlib.axes
+        ax to use in the plot.
+    column: str, default 'mean_time'.
+        Name of the column with the data to plot from the data_gdf GeoDataFrame.
+        This name defines the analysis to be performed and it must contain 'min', 'idx', 'max' or 'time' in order to select the analysis.
+        'min' refers to 'minutes' (e.g. column 'cultural_15min', which indicates the average number of kindergardens on a 15 minutes walk by hex)
+        'idx' refers to 'sigmodial index' (e.g. column 'idx_preescolar', which indicates the proximity index (using a sigmodial function) for kindergardens)
+        'max' refers to 'maximum time' (e.g. columns 'max_preescolar' which indicates time (minutes) data and is categorized in time bins)
+        'time' is used in 'min_time', 'mean_time', 'median_time' or 'max_time', and indicates statistical summaries of available amenities.
+    plot_osmnx_edges: tupple, default (False, '').
+        Tuple containing boolean on position [0]. If true, a gdf can be specified on position [1].
+        The gdf must contain edges (line geometry) from Open Street Map with a column named 'highway' since the edges are shown according 'highway' values.
+    plot_boundary: tupple, default (False, '').
+        Tuple containing boolean on position [0]. If true, a gdf can be specified on position [1]
+        The gdf must contain a boundary (polygon geometry) since the outline will be plotted.
+    adjust_to: tupple, default ('',[0.05,0.05]).
+        Argument to be passed to function square_bounds().Tupple containing string on position [0]. 
+        Passing 'boundary' adjustes zoom to boundary if provided, passing'edges' adjustes zoom to edges if provided, other strings adjustes zoom to data_gdf. 
+        The image boundaries will be adjusted to form a square centered on the previously specified gdf.
+        Position [1] must contain a list with two numbers. The first will expand the x axis and the second will expand the y axis.
+        Example: ('boundary',[0.10,0.05]) sets the bounds of the image as a square around the boundary_gdf from plot_boundary[1] 
+        plus a 10% expansion on the x-axis and a 5% expansion on the y-axis.
+    save_png: tupple, default (False, '../output/figures/plot.png').
+        Tupple containing boolean on position [0]. If true, a string can be specified on position [1] 
+        indicating the directory and file name where the png is saved.
+    png_transparency: bool, default False.
+        If True, saves the png with transparency.
+    png_dpi: int, default 300.
+        Sets the resolution to be used to save the png.
+    save_pdf: tupple, default (False, '../output/figures/plot.pdf').
+        Tupple containing boolean on position [0]. If true, a string can be specified on position [1] 
+        indicating the directory and file name where the pdf is saved.
+
+    Returns
+    -------
+    None, plots proximity analysis.
     
-    Keyword Arguments:
-        plot_osmnx_edges (tuple, optional): Tuple containing boolean on position [0].
-                                            If true, a gdf can be specified on position [1]. 
-                                            The gdf must contain edges from Open Street Map with a column named 'highway' since the edges are shown according 'highway' values.
-                                            Defaults to (False, '')
-        plot_boundary (tuple, optional): Tuple containing boolean on position [0]. 
-                                         If true, a gdf can be specified on position [1] and a boundary is ploted.
-                                         Defaults to (False, '')
-        adjust_to (tuple, optional): Argument to be passed to function square_bounds().
-                                     Tupple containing string on position [0]. Passing 'boundary' adjustes zoom to boundary if provided, passing'edges' adjustes zoom to edges if provided, other strings adjustes zoom to data_gdf. 
-                                     The image boundaries will be adjusted to form a square centered on the previously specified gdf.
-                                     Position [1] must contain a list with two numbers. The first will expand the x axis and the second will expand the y axis.
-                                     Example: ('boundary',[0.10,0.05]) sets the bounds of the image as a square around the boundary_gdf from plot_boundary[1] plus a 10% expansion on the x-axis and a 5% expansion on the y-axis.
-        save_png (tuple, optional): Tupple containing boolean on position [0].
-                                    If true, a string can be specified on position [1] indicating the directory and file name where the png is saved.
-                                    Defaults to (False, '../output/figures/plot.png')
-        png_transparency (bool): Saves the png with transparency or not. Defaults to False.
-        png_dpi (int): Sets the resolution to be used to save the png. Defaults to 300.
-        save_pdf (tuple, optional): Tupple containing boolean on position [0].
-                                    If true, a string can be specified on position [1] indicating the directory and file name where the pdf is saved.
-                                    Defaults to (False, '../output/figures/plot.pdf') 
     """
-    
     # --------------- GENERAL PLOT STYLE
     data_linestyle = '-'
     data_linewidth = 0.35
@@ -677,7 +697,8 @@ def plot_hex_proximity(data_gdf, column, location_name, ax,
         plt.savefig(save_pdf[1])
 
 
-def plot_hex_ndvi(data_gdf, column, location_name, ax,
+def plot_hex_ndvi(data_gdf, location_name, ax,
+                  column='ndvi_mean',
                   plot_osmnx_edges = (False, ''),
                   plot_boundary = (False, ''),
                   adjust_to = ('',[0.05,0.05]),
@@ -687,40 +708,54 @@ def plot_hex_ndvi(data_gdf, column, location_name, ax,
                   save_pdf = (False, '../output/figures/plot.pdf'),
                  ):
     """
-    This function creates a plot designed to show ndvi analysis values.
-    
-    Arguments:
-         data_gdf (geopandas.GeoDataFrame): GeoDataFrame with the data to be plotted.
-                                            The function doesn't plotting correctly ndvi_std nor ndvi_diff values.
-                                            Only columns containing ndvi values (ndvi_min, ndvi_mean, ndvi_median, ndvi_max, ndvi_<year>) or tendency data (ndvi_tend) should be used.
-         column (str): Name of the column with the data to plot from the data_gdf GeoDataFrame.
-         location_name (str): Name of the location (to be added on the plot title).
-         ax (matplotlib.axes): ax to use in the plot.
-    
-    Keyword Arguments:
-        plot_osmnx_edges (tuple, optional): Tuple containing boolean on position [0].
-                                            If true, a gdf can be specified on position [1]. 
-                                            The gdf must contain edges from Open Street Map with a column named 'highway' since the edges are shown according 'highway' values.
-                                            Defaults to (False, '')
-        plot_boundary (tuple, optional): Tuple containing boolean on position [0]. 
-                                         If true, a gdf can be specified on position [1] and a boundary is ploted.
-                                         Defaults to (False, '')
-        adjust_to (tuple, optional): Argument to be passed to function square_bounds().
-                                     Tupple containing string on position [0]. Passing 'boundary' adjustes zoom to boundary if provided, passing'edges' adjustes zoom to edges if provided, other strings adjustes zoom to data_gdf. 
-                                     The image boundaries will be adjusted to form a square centered on the previously specified gdf.
-                                     Position [1] must contain a list with two numbers. The first will expand the x axis and the second will expand the y axis.
-                                     Example: ('boundary',[0.10,0.05]) sets the bounds of the image as a square around the boundary_gdf from plot_boundary[1] plus a 10% expansion on the x-axis and a 5% expansion on the y-axis.
-        save_png (tuple, optional): Tupple containing boolean on position [0].
-                                    If true, a string can be specified on position [1] indicating the directory and file name where the png is saved.
-                                    Defaults to (False, '../output/figures/plot.png')
-        png_transparency (bool): Saves the png with transparency or not. Defaults to False.
-        png_dpi (int): Sets the resolution to be used to save the png. Defaults to 300.
-        save_pdf (tuple, optional): Tupple containing boolean on position [0].
-                                    If true, a string can be specified on position [1] indicating the directory and file name where the pdf is saved.
-                                    Defaults to (False, '../output/figures/plot.pdf') 
-    """
+    Creates a plot showing ndvi analysis data.
 
+    This function can be used to plot NDVI analysis results (data divided in 5 vegetation categories) or NDVI tendency given the available years.
+    The function defaults to mean NDVI analysis results.
     
+    Parameters
+    ----------
+    data_gdf: geopandas.GeoDataFrame
+        GeoDataFrame with the ndvi analysis data from OdC.
+    location_name: str
+        Text containing the location (e.g. city name), used to be added in the main plot title.        
+    ax: matplotlib.axes
+        ax to use in the plot.
+    column: str, default 'ndvi_mean'.
+        Name of the column with the data to plot from the data_gdf GeoDataFrame.
+        This name defines the analysis to be performed and it must be 'ndvi_tend' or 'ndvi_{year}' (e.g. 'ndvi_2019') or a statistical summary column.
+        Passing 'ndvi_tend' returns a tendency plot using 'ndvi_tend' column
+        Passing 'ndvi_{year}' or other statistical summary column (e.g. 'ndvi_mean') assumes the column has NDVI values ranging from -1 to 1 and
+        categorizes that information in 5 vegetation categories.
+    plot_osmnx_edges: tupple, default (False, '').
+        Tuple containing boolean on position [0]. If true, a gdf can be specified on position [1].
+        The gdf must contain edges (line geometry) from Open Street Map with a column named 'highway' since the edges are shown according 'highway' values.
+    plot_boundary: tupple, default (False, '').
+        Tuple containing boolean on position [0]. If true, a gdf can be specified on position [1]
+        The gdf must contain a boundary (polygon geometry) since the outline will be plotted.
+    adjust_to: tupple, default ('',[0.05,0.05]).
+        Argument to be passed to function square_bounds().Tupple containing string on position [0]. 
+        Passing 'boundary' adjustes zoom to boundary if provided, passing'edges' adjustes zoom to edges if provided, other strings adjustes zoom to data_gdf. 
+        The image boundaries will be adjusted to form a square centered on the previously specified gdf.
+        Position [1] must contain a list with two numbers. The first will expand the x axis and the second will expand the y axis.
+        Example: ('boundary',[0.10,0.05]) sets the bounds of the image as a square around the boundary_gdf from plot_boundary[1] 
+        plus a 10% expansion on the x-axis and a 5% expansion on the y-axis.
+    save_png: tupple, default (False, '../output/figures/plot.png').
+        Tupple containing boolean on position [0]. If true, a string can be specified on position [1] 
+        indicating the directory and file name where the png is saved.
+    png_transparency: bool, default False.
+        If True, saves the png with transparency.
+    png_dpi: int, default 300.
+        Sets the resolution to be used to save the png.
+    save_pdf: tupple, default (False, '../output/figures/plot.pdf').
+        Tupple containing boolean on position [0]. If true, a string can be specified on position [1] 
+        indicating the directory and file name where the pdf is saved.
+
+    Returns
+    -------
+    None, plots proximity analysis.
+    
+    """
     # --------------- GENERAL PLOT STYLE
     data_linestyle = '-'
     data_linewidth = 0.35
@@ -860,7 +895,8 @@ def plot_hex_ndvi(data_gdf, column, location_name, ax,
         plt.savefig(save_pdf[1])
 
 
-def plot_hex_temperature(data_gdf, column, location_name, ax,
+def plot_hex_temperature(data_gdf, location_name, ax,
+                         column='',
                          plot_osmnx_edges = (False, ''),
                          plot_boundary = (False, ''),
                          adjust_to = ('',[0.05,0.05]),
@@ -870,40 +906,53 @@ def plot_hex_temperature(data_gdf, column, location_name, ax,
                          save_pdf = (False, '../output/figures/plot.pdf'),
                         ):
     """
-    This function creates a plot designed to show ndvi analysis values.
-    
-    Arguments:
-         data_gdf (geopandas.GeoDataFrame): GeoDataFrame with the data to be plotted. 
-         column (str): Name of the column with the data to plot from the data_gdf GeoDataFrame.
-                       This function plots either temperature anomaly (Difference between each hex's mean temperature and the overall city's mean temperature) or temperature tendency (direction of change over time by hex).
-                       column="temperature_tend" plots temperature tendency. Any other value plots temperature anomaly by calculating and changing the column name provided to 'temperature_anomaly'.
-         location_name (str): Name of the location (to be added on the plot title).
-         ax (matplotlib.axes): ax to use in the plot.
-    
-    Keyword Arguments:
-        plot_osmnx_edges (tuple, optional): Tuple containing boolean on position [0].
-                                            If true, a gdf can be specified on position [1]. 
-                                            The gdf must contain edges from Open Street Map with a column named 'highway' since the edges are shown according 'highway' values.
-                                            Defaults to (False, '')
-        plot_boundary (tuple, optional): Tuple containing boolean on position [0]. 
-                                         If true, a gdf can be specified on position [1] and a boundary is ploted.
-                                         Defaults to (False, '')
-        adjust_to (tuple, optional): Argument to be passed to function square_bounds().
-                                     Tupple containing string on position [0]. Passing 'boundary' adjustes zoom to boundary if provided, passing'edges' adjustes zoom to edges if provided, other strings adjustes zoom to data_gdf. 
-                                     The image boundaries will be adjusted to form a square centered on the previously specified gdf.
-                                     Position [1] must contain a list with two numbers. The first will expand the x axis and the second will expand the y axis.
-                                     Example: ('boundary',[0.10,0.05]) sets the bounds of the image as a square around the boundary_gdf from plot_boundary[1] plus a 10% expansion on the x-axis and a 5% expansion on the y-axis.
-        save_png (tuple, optional): Tupple containing boolean on position [0].
-                                    If true, a string can be specified on position [1] indicating the directory and file name where the png is saved.
-                                    Defaults to (False, '../output/figures/plot.png')
-        png_transparency (bool): Saves the png with transparency or not. Defaults to False.
-        png_dpi (int): Sets the resolution to be used to save the png. Defaults to 300.
-        save_pdf (tuple, optional): Tupple containing boolean on position [0].
-                                    If true, a string can be specified on position [1] indicating the directory and file name where the pdf is saved.
-                                    Defaults to (False, '../output/figures/plot.pdf') 
-    """
+    Creates a plot showing temperature analysis data.
 
+    This function can be used to plot temperature analysis results (data showing hotter or colder areas relative to the overall mean, divided in 7 categories)
+    or temperature tendency given the available years. The function defaults to temperature analysis results.
     
+    Parameters
+    ----------
+    data_gdf: geopandas.GeoDataFrame
+        GeoDataFrame with the ndvi analysis data from OdC.
+    location_name: str
+        Text containing the location (e.g. city name), used to be added in the main plot title.        
+    ax: matplotlib.axes
+        ax to use in the plot.
+    column: str, default ''.
+        Name of the column with the data to plot from the data_gdf GeoDataFrame.
+        This name defines the analysis to be performed.
+        Passing 'temperature_tend' returns a tendency plot using 'temperature_tend' column
+        NOTE: Passing ANY other value assumes that there is a column named 'temperature_mean' from which the difference relative to the overall mean is calculated.
+    plot_osmnx_edges: tupple, default (False, '').
+        Tuple containing boolean on position [0]. If true, a gdf can be specified on position [1].
+        The gdf must contain edges (line geometry) from Open Street Map with a column named 'highway' since the edges are shown according 'highway' values.
+    plot_boundary: tupple, default (False, '').
+        Tuple containing boolean on position [0]. If true, a gdf can be specified on position [1]
+        The gdf must contain a boundary (polygon geometry) since the outline will be plotted.
+    adjust_to: tupple, default ('',[0.05,0.05]).
+        Argument to be passed to function square_bounds().Tupple containing string on position [0]. 
+        Passing 'boundary' adjustes zoom to boundary if provided, passing'edges' adjustes zoom to edges if provided, other strings adjustes zoom to data_gdf. 
+        The image boundaries will be adjusted to form a square centered on the previously specified gdf.
+        Position [1] must contain a list with two numbers. The first will expand the x axis and the second will expand the y axis.
+        Example: ('boundary',[0.10,0.05]) sets the bounds of the image as a square around the boundary_gdf from plot_boundary[1] 
+        plus a 10% expansion on the x-axis and a 5% expansion on the y-axis.
+    save_png: tupple, default (False, '../output/figures/plot.png').
+        Tupple containing boolean on position [0]. If true, a string can be specified on position [1] 
+        indicating the directory and file name where the png is saved.
+    png_transparency: bool, default False.
+        If True, saves the png with transparency.
+    png_dpi: int, default 300.
+        Sets the resolution to be used to save the png.
+    save_pdf: tupple, default (False, '../output/figures/plot.pdf').
+        Tupple containing boolean on position [0]. If true, a string can be specified on position [1] 
+        indicating the directory and file name where the pdf is saved.
+
+    Returns
+    -------
+    None, plots proximity analysis.
+    
+    """
     # --------------- GENERAL PLOT STYLE
     data_linestyle = '-'
     data_linewidth = 0.35
