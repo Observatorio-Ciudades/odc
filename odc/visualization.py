@@ -482,16 +482,17 @@ def observatory_plot_format(ax, plot_title, legend_title, legend_type, cmap_args
     ax.add_artist(ab)
 
 
-def plot_hex_proximity(data_gdf, location_name, ax,
-                       column='mean_time',
-                       plot_osmnx_edges = (False, ''),
-                       plot_boundary = (False, ''),
-                       adjust_to = ('',[0.05,0.05]),
-                       save_png = (False, '../output/figures/plot.png'),
-                       png_transparency = False,
-                       png_dpi = 300,
-                       save_pdf = (False, '../output/figures/plot.pdf'),
-                      ):
+def plot_proximity(data_gdf, ax,
+                   column='mean_time',
+                   location_name = '',
+                   plot_osmnx_edges = (False, ''),
+                   plot_boundary = (False, ''),
+                   adjust_to = ('',[0.05,0.05]),
+                   save_png = (False, '../output/figures/plot.png'),
+                   png_transparency = False,
+                   png_dpi = 300,
+                   save_pdf = (False, '../output/figures/plot.pdf')
+                   ):
     """
     Creates a plot showing proximity analysis data.
 
@@ -501,18 +502,19 @@ def plot_hex_proximity(data_gdf, location_name, ax,
     Parameters
     ----------
     data_gdf: geopandas.GeoDataFrame
-        GeoDataFrame with the proximity analysis data from OdC.
-    location_name: str
-        Text containing the location (e.g. city name), used to be added in the main plot title.        
+        GeoDataFrame with the proximity analysis data from OdC.        
     ax: matplotlib.axes
         ax to use in the plot.
     column: str, default 'mean_time'.
         Name of the column with the data to plot from the data_gdf GeoDataFrame.
         This name defines the analysis to be performed and it must contain 'min', 'idx', 'max' or 'time' in order to select the analysis.
-        'min' refers to 'minutes' (e.g. column 'cultural_15min', which indicates the average number of kindergardens on a 15 minutes walk by hex)
+        'min' refers to 'minutes' (e.g. column 'cultural_15min', which indicates the average number of kindergardens on a 15 minutes walk)
         'idx' refers to 'sigmodial index' (e.g. column 'idx_preescolar', which indicates the proximity index (using a sigmodial function) for kindergardens)
         'max' refers to 'maximum time' (e.g. columns 'max_preescolar' which indicates time (minutes) data and is categorized in time bins)
         'time' is used in 'min_time', 'mean_time', 'median_time' or 'max_time', and indicates statistical summaries of available amenities.
+    location_name: str, default ''.
+        Text containing the location (e.g. city name), used to be added in the main plot title.
+        If not provided, the title will not contain a location name.
     plot_osmnx_edges: tupple, default (False, '').
         Tuple containing boolean on position [0]. If true, a gdf can be specified on position [1].
         The gdf must contain edges (line geometry) from Open Street Map with a column named 'highway' since the edges are shown according 'highway' values.
@@ -548,7 +550,7 @@ def plot_hex_proximity(data_gdf, location_name, ax,
     data_edgecolor = 'white'
     
     # --------------- FOR AMENITY AVAILABILITY (COUNT) DATA
-    # (e.g. column 'cultural_15min', which indicates the average number of kindergardens on a 15 minutes walk by hex)
+    # (e.g. column 'cultural_15min', which indicates the average number of kindergardens on a 15 minutes walk)
     if 'min' in column:
         # --- TITLE
         # Extract amenity name from column name
@@ -556,7 +558,7 @@ def plot_hex_proximity(data_gdf, location_name, ax,
         # Extract time used for availability calculation (normaly 15 minutes) from column name
         time_amount = column.split('_')[1]
         # Create plot title
-        plot_title = f"Availability of {amenity_name} amenities on a {time_amount} walk in {location_name.capitalize()}."
+        plot_title = f"Availability of {amenity_name} amenities on a {time_amount} walk" #Whithout period at the end to add location name if provided
         # --- LEGEND - COLOR BAR
         legend_type='colorbar'
         # Define cmap and normalization
@@ -579,11 +581,11 @@ def plot_hex_proximity(data_gdf, location_name, ax,
         # --- TITLE
         # Set plot title
         if column == 'idx_sum': #All-amenities index
-            plot_title = f"Proximity index (Sigmodial) for all amenities in {location_name.capitalize()}."
+            plot_title = f"Proximity index (Sigmodial) for all amenities" #Whithout period at the end to add location name if provided
         else: # Index to specific amenity
             # Extract amenity name from column name
             amenity_name = column.split('_')[1]
-            plot_title = f"Proximity index (Sigmodial) for {amenity_name} amenities in {location_name.capitalize()}."
+            plot_title = f"Proximity index (Sigmodial) for {amenity_name} amenities" #Whithout period at the end to add location name if provided
         # --- LEGEND - COLOR BAR
         legend_type='colorbar'
         # Define cmap and normalization
@@ -608,11 +610,11 @@ def plot_hex_proximity(data_gdf, location_name, ax,
         if 'time' in column: #Time to all amenities
             # Extract statistical selected (Can be mean_time, median_time or max_time) from column name
             statistical = column.split('_')[0]
-            plot_title = f"Proximity analysis ({statistical} time) to all amenities in {location_name.capitalize()}."
+            plot_title = f"Proximity analysis ({statistical} time) to all amenities" #Whithout period at the end to add location name if provided
         else: # Time to specific amenity
             # Extract amenity name from column name
             amenity_name = column.split('_')[1]
-            plot_title = f"Time to {amenity_name} amenities in {location_name.capitalize()}."
+            plot_title = f"Time to {amenity_name} amenities" #Whithout period at the end to add location name if provided
         # --- LEGEND - CATEGORIZED
         legend_type='categorized'
         # Categorize time data in time bins
@@ -672,6 +674,12 @@ def plot_hex_proximity(data_gdf, location_name, ax,
         square_bounds(ax, data_gdf, adjust_to[1])
 
     # FORMAT - OBSERVATORY'S PLOT FORMAT - Controls positioning, style and sizing for main title, legend, grid and logo.
+    # Add location name to title if provided
+    if location_name=='':
+        plot_title = plot_title+'.'
+    else:
+        plot_title = plot_title+f' in {location_name.capitalize()}.'
+    # Call observatory_plot_format() function
     if legend_type=='colorbar':
         observatory_plot_format(ax=ax,
                                 plot_title=plot_title,
@@ -697,16 +705,17 @@ def plot_hex_proximity(data_gdf, location_name, ax,
         plt.savefig(save_pdf[1])
 
 
-def plot_hex_ndvi(data_gdf, location_name, ax,
-                  column='ndvi_mean',
-                  plot_osmnx_edges = (False, ''),
-                  plot_boundary = (False, ''),
-                  adjust_to = ('',[0.05,0.05]),
-                  save_png = (False, '../output/figures/plot.png'),
-                  png_transparency = False,
-                  png_dpi = 300,
-                  save_pdf = (False, '../output/figures/plot.pdf'),
-                 ):
+def plot_ndvi(data_gdf, ax,
+              column='ndvi_mean',
+              location_name = '',
+              plot_osmnx_edges = (False, ''),
+              plot_boundary = (False, ''),
+              adjust_to = ('',[0.05,0.05]),
+              save_png = (False, '../output/figures/plot.png'),
+              png_transparency = False,
+              png_dpi = 300,
+              save_pdf = (False, '../output/figures/plot.pdf')
+              ):
     """
     Creates a plot showing ndvi analysis data.
 
@@ -716,9 +725,7 @@ def plot_hex_ndvi(data_gdf, location_name, ax,
     Parameters
     ----------
     data_gdf: geopandas.GeoDataFrame
-        GeoDataFrame with the ndvi analysis data from OdC.
-    location_name: str
-        Text containing the location (e.g. city name), used to be added in the main plot title.        
+        GeoDataFrame with the ndvi analysis data from OdC.    
     ax: matplotlib.axes
         ax to use in the plot.
     column: str, default 'ndvi_mean'.
@@ -727,6 +734,9 @@ def plot_hex_ndvi(data_gdf, location_name, ax,
         Passing 'ndvi_tend' returns a tendency plot using 'ndvi_tend' column
         Passing 'ndvi_{year}' or other statistical summary column (e.g. 'ndvi_mean') assumes the column has NDVI values ranging from -1 to 1 and
         categorizes that information in 5 vegetation categories.
+    location_name: str, default ''.
+        Text containing the location (e.g. city name), used to be added in the main plot title.
+        If not provided, the title will not contain a location name.
     plot_osmnx_edges: tupple, default (False, '').
         Tuple containing boolean on position [0]. If true, a gdf can be specified on position [1].
         The gdf must contain edges (line geometry) from Open Street Map with a column named 'highway' since the edges are shown according 'highway' values.
@@ -766,7 +776,7 @@ def plot_hex_ndvi(data_gdf, location_name, ax,
     if column=='ndvi_tend':
         # --- TITLE
         # Create plot title
-        plot_title = f"Tendency of NDVI data in {location_name.capitalize()}."
+        plot_title = f"Tendency of NDVI data" #Whithout period at the end to add location name if provided
         # --- LEGEND - COLOR BAR
         legend_type='colorbar'
         # Define cmap and normalization
@@ -804,11 +814,11 @@ def plot_hex_ndvi(data_gdf, location_name, ax,
         if column[5] == '2':
             # Extract selected year
             year = column.split('_')[1]
-            plot_title = f"NDVI values by hex in {year} in {location_name.capitalize()}."
+            plot_title = f"NDVI values in {year}" #Whithout period at the end to add location name if provided
         else:
             # Extract selected statistical name
             statistical = column.split('_')[1]
-            plot_title = f"{statistical.capitalize()} NDVI values by hex in {location_name.capitalize()}."
+            plot_title = f"{statistical.capitalize()} NDVI values" #Whithout period at the end to add location name if provided
         
         # --- LEGEND - CATEGORIZED
         legend_type='categorized'
@@ -870,6 +880,12 @@ def plot_hex_ndvi(data_gdf, location_name, ax,
         square_bounds(ax, data_gdf, adjust_to[1])
 
     # FORMAT - OBSERVATORY'S PLOT FORMAT - Controls positioning, style and sizing for main title, legend, grid and logo.
+    # Add location name to title if provided
+    if location_name=='':
+        plot_title = plot_title+'.'
+    else:
+        plot_title = plot_title+f' in {location_name.capitalize()}.'
+    # Call observatory_plot_format() function
     if legend_type=='colorbar':
         observatory_plot_format(ax=ax,
                                 plot_title=plot_title,
@@ -895,16 +911,17 @@ def plot_hex_ndvi(data_gdf, location_name, ax,
         plt.savefig(save_pdf[1])
 
 
-def plot_hex_temperature(data_gdf, location_name, ax,
-                         column='',
-                         plot_osmnx_edges = (False, ''),
-                         plot_boundary = (False, ''),
-                         adjust_to = ('',[0.05,0.05]),
-                         save_png = (False, '../output/figures/plot.png'),
-                         png_transparency = False,
-                         png_dpi = 300,
-                         save_pdf = (False, '../output/figures/plot.pdf'),
-                        ):
+def plot_temperature(data_gdf, ax,
+                     column='',
+                     location_name = '',
+                     plot_osmnx_edges = (False, ''),
+                     plot_boundary = (False, ''),
+                     adjust_to = ('',[0.05,0.05]),
+                     save_png = (False, '../output/figures/plot.png'),
+                     png_transparency = False,
+                     png_dpi = 300,
+                     save_pdf = (False, '../output/figures/plot.pdf')
+                     ):
     """
     Creates a plot showing temperature analysis data.
 
@@ -914,9 +931,7 @@ def plot_hex_temperature(data_gdf, location_name, ax,
     Parameters
     ----------
     data_gdf: geopandas.GeoDataFrame
-        GeoDataFrame with the ndvi analysis data from OdC.
-    location_name: str
-        Text containing the location (e.g. city name), used to be added in the main plot title.        
+        GeoDataFrame with the ndvi analysis data from OdC.      
     ax: matplotlib.axes
         ax to use in the plot.
     column: str, default ''.
@@ -924,6 +939,9 @@ def plot_hex_temperature(data_gdf, location_name, ax,
         This name defines the analysis to be performed.
         Passing 'temperature_tend' returns a tendency plot using 'temperature_tend' column
         NOTE: Passing ANY other value assumes that there is a column named 'temperature_mean' from which the difference relative to the overall mean is calculated.
+    location_name: str, default ''.
+        Text containing the location (e.g. city name), used to be added in the main plot title.
+        If not provided, the title will not contain a location name.
     plot_osmnx_edges: tupple, default (False, '').
         Tuple containing boolean on position [0]. If true, a gdf can be specified on position [1].
         The gdf must contain edges (line geometry) from Open Street Map with a column named 'highway' since the edges are shown according 'highway' values.
@@ -963,7 +981,7 @@ def plot_hex_temperature(data_gdf, location_name, ax,
     if column=='temperature_tend':
         # --- TITLE
         # Create plot title
-        plot_title = f"Tendency of temperature data in {location_name.capitalize()}."
+        plot_title = f"Tendency of temperature data" #Whithout period at the end to add location name if provided
         # --- LEGEND - COLOR BAR
         legend_type='colorbar'
         # Define cmap and normalization
@@ -989,16 +1007,16 @@ def plot_hex_temperature(data_gdf, location_name, ax,
                       edgecolor=data_edgecolor, zorder=1) 
 
     # --------------- FOR ANOMALY (temperature_anomaly)
-    # (temperature_anomaly indicates the difference between the temperature_mean of each hex and the overall (city) mean.
+    # (temperature_anomaly indicates the difference between the temperature_mean of each polygon and the overall (city) mean.
     else:
         # Rewrite column, no other values are permitted.
         column='temperature_anomaly'
         # --- TITLE
         # Set plot title according to column used
-        plot_title = f"Temperature difference between each hex's mean and overall mean in {location_name.capitalize()}."
+        plot_title = f"Temperature difference between each polygon's mean and overall mean" #Whithout period at the end to add location name if provided
         # --- LEGEND - CATEGORIZED
         legend_type='categorized'
-        # Calculate anomaly (difference between mean in each hex and city's mean)
+        # Calculate anomaly (difference between mean in each polygon and city's mean)
         mean_city_temperature = data_gdf.temperature_mean.mean()
         data_gdf['temperature_anomaly'] = data_gdf['temperature_mean'] - mean_city_temperature
         # Categorize anomaly
@@ -1068,6 +1086,12 @@ def plot_hex_temperature(data_gdf, location_name, ax,
         square_bounds(ax, data_gdf, adjust_to[1])
 
     # FORMAT - OBSERVATORY'S PLOT FORMAT - Controls positioning, style and sizing for main title, legend, grid and logo.
+    # Add location name to title if provided
+    if location_name=='':
+        plot_title = plot_title+'.'
+    else:
+        plot_title = plot_title+f' in {location_name.capitalize()}.'
+    # Call observatory_plot_format() function
     if legend_type=='colorbar':
         observatory_plot_format(ax=ax,
                                 plot_title=plot_title,
@@ -1091,3 +1115,55 @@ def plot_hex_temperature(data_gdf, location_name, ax,
         plt.savefig(save_png[1],dpi=png_dpi,transparent=png_transparency)
     if save_pdf[0]:
         plt.savefig(save_pdf[1])
+
+
+def plot_temperature_anomaly(data_gdf, ax, 
+                             kwargs={}
+                             ):
+
+    """
+    Creates a plot showing temperature analysis results (data showing hotter or colder areas relative to the overall mean, divided in 7 categories).
+    
+    Parameters
+    ----------
+    data_gdf: geopandas.GeoDataFrame
+        GeoDataFrame with the ndvi analysis data from OdC.
+    ax: matplotlib.axes
+        ax to use in the plot.
+    kwargs: dict, default {}.
+        Dictionary with additional parameters to be passed to the plot_temperature() function.
+    
+    """
+    # Set column in order to make sure that a temperature anomaly plot is generated.
+    kwargs['column'] = 'temperature_mean'
+    # Call plot_temperature() function
+    plot_temperature(data_gdf=data_gdf,
+                     ax=ax,
+                     **kwargs
+                     )
+
+
+def plot_temperature_tendency(data_gdf, ax, 
+                              kwargs={}
+                              ):
+
+    """
+    Creates a plot showing temperature tendency given the available years.
+    
+    Parameters
+    ----------
+    data_gdf: geopandas.GeoDataFrame
+        GeoDataFrame with the ndvi analysis data from OdC.
+    ax: matplotlib.axes
+        ax to use in the plot.
+    kwargs: dict, default {}.
+        Dictionary with additional parameters to be passed to the plot_temperature() function.
+    
+    """
+    # Set column in order to make sure that a temperature tendency plot is generated.
+    kwargs['column'] = 'temperature_tendency'
+    # Call plot_temperature() function
+    plot_temperature(data_gdf=data_gdf,
+                     ax=ax,
+                     **kwargs
+                     )
