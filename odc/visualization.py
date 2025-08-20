@@ -19,6 +19,8 @@ from matplotlib.colors import TwoSlopeNorm #Tendency colorbar with both positive
 import matplotlib.image as mpimg
 # Place logo image above plot
 from matplotlib.offsetbox import OffsetImage, AnnotationBbox
+# For function documentation
+from matplotlib.axes import Axes
 
 from .data import *
 
@@ -283,7 +285,10 @@ def kepler_config():
 	return config, config_idx
 
 
-def square_bounds(ax, bounds_gdf, boundary_expansion=[0.05,0.05]):
+def square_bounds(ax: Axes,
+                  bounds_gdf: gpd.GeoDataFrame, 
+                  boundary_expansion=[0.05,0.05]
+                  ) -> None:
     """
     Formats a ax's boundaries in order to set squared bounds around a given GeoDataFrame's geometry.
 
@@ -309,7 +314,22 @@ def square_bounds(ax, bounds_gdf, boundary_expansion=[0.05,0.05]):
     -------
     None, modifies ax.
 
+    Raises
+    ------
+    TypeError
+        If required inputs are missing or if inputs are invalid.
+    ValueError
+        If boundary_expansion is not a list with two numeric values.    
+
     """
+    # Input validation
+    if ax is not None and not isinstance(ax, (Axes)):
+        raise TypeError("ax must be a matplotlib.axes.Axes instance.")
+    if bounds_gdf is None or not isinstance(bounds_gdf, gpd.GeoDataFrame):
+        raise TypeError("bounds_gdf must be a geopandas.GeoDataFrame instance.")
+    if not isinstance(boundary_expansion, list) or len(boundary_expansion) != 2:
+        raise ValueError("boundary_expansion must be a list with two numeric values.")
+    
     # Calculate bounds_gdf's current bounding box
     minx, miny, maxx, maxy = bounds_gdf.total_bounds
     
@@ -353,7 +373,13 @@ def square_bounds(ax, bounds_gdf, boundary_expansion=[0.05,0.05]):
     ax.set_ylim(expanded_square_miny, expanded_square_maxy)
 
 
-def observatory_plot_format(ax, plot_title, legend_title, legend_type, cmap_args=[], grid=False):
+def observatory_plot_format(ax: Axes,
+                            plot_title: str, 
+                            legend_title: str, 
+                            legend_type: str, 
+                            cmap_args=[], 
+                            grid=False
+                            ) -> None:
     """
     Formats the plot to the observatory's style:
 
@@ -378,16 +404,37 @@ def observatory_plot_format(ax, plot_title, legend_title, legend_type, cmap_args
         For 'colorbar' the legend is edited using matplotlib.colorbar.ColorbarBase.
     cmap_agrs: list, default [].
         Necessary if legend_type='colormap', this argument must contain two values used to create the colorbar:
-        - The first element must be the previously generated colormap (which can be obtained using plt.get_cmap(''))
-        - The second element must be the previously generated norm colors (which can be obtained using colors.Normalize())
+        - The first element must be the previously generated colormap (type plt.colormaps.Colormap, which can be obtained using plt.get_cmap(''))
+        - The second element must be the previously generated norm colors (type colors.Normalize, which can be obtained using colors.Normalize())
     grid: bool, default False.
         If true turns on coordinates grid.
 
     Returns
     -------
     None, modifies ax.
+
+    Raises
+    ------
+    TypeError
+        If required inputs are missing or if inputs are invalid.
+    ValueError
+        If legend_type is not 'categorized' or 'colorbar', or if cmap_args does not contain the required elements for a colorbar.
     
     """
+    # Input validation
+    if ax is not None and not isinstance(ax, (Axes)):
+        raise TypeError("ax must be a matplotlib.axes.Axes instance.")
+    if not isinstance(plot_title, str):
+        raise TypeError("plot_title must be a string.")
+    if not isinstance(legend_title, str):
+        raise TypeError("legend_title must be a string.")
+    if legend_type not in ['categorized', 'colorbar']:
+        raise ValueError("legend_type must be either 'categorized' or 'colorbar'.")
+    if legend_type == 'colorbar' and (len(cmap_args) != 2 or not isinstance(cmap_args[0], plt.colormaps.Colormap) or not isinstance(cmap_args[1], colors.Normalize)):
+        raise ValueError("If using legent_type='colorbar', cmap_args must contain two elements: a colormap and a norm. The first element must be a matplotlib colormap and the second a matplotlib colors.Normalize instance.")
+    if not isinstance(grid, bool):
+        raise TypeError("grid must be a boolean value (True or False).")
+
     ##########################################################################################
     # STEP 1: AX DIMENSIONS
     # Calculate current ax width, height and larger size (Relevant values used in title text wrapping, legent text sizing and image zoom calculation)
@@ -482,17 +529,18 @@ def observatory_plot_format(ax, plot_title, legend_title, legend_type, cmap_args
     ax.add_artist(ab)
 
 
-def plot_proximity(data_gdf, ax,
+def plot_proximity(data_gdf: gpd.GeoDataFrame, 
+                   ax: Axes,
                    column='mean_time',
                    location_name = '',
-                   plot_osmnx_edges = (False, ''),
-                   plot_boundary = (False, ''),
+                   plot_osmnx_edges = (False, gpd.GeoDataFrame),
+                   plot_boundary = (False, gpd.GeoDataFrame),
                    adjust_to = ('',[0.05,0.05]),
                    save_png = (False, '../output/figures/plot.png'),
                    png_transparency = False,
                    png_dpi = 300,
                    save_pdf = (False, '../output/figures/plot.pdf')
-                   ):
+                   ) -> None:
     """
     Creates a plot showing proximity analysis data.
 
@@ -515,10 +563,10 @@ def plot_proximity(data_gdf, ax,
     location_name: str, default ''.
         Text containing the location (e.g. city name), used to be added in the main plot title.
         If not provided, the title will not contain a location name.
-    plot_osmnx_edges: tupple, default (False, '').
+    plot_osmnx_edges: tupple, default (False, gpd.GeoDataFrame).
         Tuple containing boolean on position [0]. If true, a gdf can be specified on position [1].
         The gdf must contain edges (line geometry) from Open Street Map with a column named 'highway' since the edges are shown according 'highway' values.
-    plot_boundary: tupple, default (False, '').
+    plot_boundary: tupple, default (False, gpd.GeoDataFrame).
         Tuple containing boolean on position [0]. If true, a gdf can be specified on position [1]
         The gdf must contain a boundary (polygon geometry) since the outline will be plotted.
     adjust_to: tupple, default ('',[0.05,0.05]).
@@ -542,8 +590,37 @@ def plot_proximity(data_gdf, ax,
     Returns
     -------
     None, plots proximity analysis.
-    
+
+    Raises
+    ------
+    TypeError
+        If required inputs are missing or if inputs are invalid.
+
     """
+    # Input validation
+    if not isinstance(data_gdf, gpd.GeoDataFrame):
+        raise TypeError("data_gdf must be a geopandas.GeoDataFrame instance.")
+    if ax is not None and not isinstance(ax, (Axes)):
+        raise TypeError("ax must be a matplotlib.axes.Axes instance.")
+    if not isinstance(column, str):
+        raise TypeError("column must be a string.")
+    if not isinstance(location_name, str):
+        raise TypeError("location_name must be a string.")
+    if not isinstance(plot_osmnx_edges, tuple) or len(plot_osmnx_edges) != 2:
+        raise TypeError("plot_osmnx_edges must be a tuple with two elements: a boolean and a GeoDataFrame.")
+    if not isinstance(plot_boundary, tuple) or len(plot_boundary) != 2:
+        raise TypeError("plot_boundary must be a tuple with two elements: a boolean and a GeoDataFrame.")
+    if not isinstance(adjust_to, tuple) or len(adjust_to) != 2:
+        raise TypeError("adjust_to must be a tuple with two elements: a string (either 'boundary', 'edges' or '') and a list with two numeric values.")
+    if not isinstance(save_png, tuple) or len(save_png) != 2:
+        raise TypeError("save_png must be a tuple with two elements: a boolean and a string (file path).")
+    if not isinstance(png_transparency, bool):
+        raise TypeError("png_transparency must be a boolean value (True or False).")
+    if not isinstance(png_dpi, int):
+        raise TypeError("png_dpi must be an integer value.")
+    if not isinstance(save_pdf, tuple) or len(save_pdf) != 2:
+        raise TypeError("save_pdf must be a tuple with two elements: a boolean and a string (file path).")
+    
     # --------------- GENERAL PLOT STYLE
     data_linestyle = '-'
     data_linewidth = 0.35
@@ -705,17 +782,18 @@ def plot_proximity(data_gdf, ax,
         plt.savefig(save_pdf[1])
 
 
-def plot_ndvi(data_gdf, ax,
+def plot_ndvi(data_gdf: gpd.GeoDataFrame,
+              ax: Axes,
               column='ndvi_mean',
               location_name = '',
-              plot_osmnx_edges = (False, ''),
-              plot_boundary = (False, ''),
+              plot_osmnx_edges = (False, gpd.GeoDataFrame),
+              plot_boundary = (False, gpd.GeoDataFrame),
               adjust_to = ('',[0.05,0.05]),
               save_png = (False, '../output/figures/plot.png'),
               png_transparency = False,
               png_dpi = 300,
               save_pdf = (False, '../output/figures/plot.pdf')
-              ):
+              ) -> None:
     """
     Creates a plot showing ndvi analysis data.
 
@@ -737,10 +815,10 @@ def plot_ndvi(data_gdf, ax,
     location_name: str, default ''.
         Text containing the location (e.g. city name), used to be added in the main plot title.
         If not provided, the title will not contain a location name.
-    plot_osmnx_edges: tupple, default (False, '').
+    plot_osmnx_edges: tupple, default (False, gpd.GeoDataFrame).
         Tuple containing boolean on position [0]. If true, a gdf can be specified on position [1].
         The gdf must contain edges (line geometry) from Open Street Map with a column named 'highway' since the edges are shown according 'highway' values.
-    plot_boundary: tupple, default (False, '').
+    plot_boundary: tupple, default (False, gpd.GeoDataFrame).
         Tuple containing boolean on position [0]. If true, a gdf can be specified on position [1]
         The gdf must contain a boundary (polygon geometry) since the outline will be plotted.
     adjust_to: tupple, default ('',[0.05,0.05]).
@@ -763,9 +841,38 @@ def plot_ndvi(data_gdf, ax,
 
     Returns
     -------
-    None, plots proximity analysis.
+    None, plots ndvi analysis.
+
+    Raises
+    ------
+    TypeError
+        If required inputs are missing or if inputs are invalid.
     
     """
+    # Input validation
+    if not isinstance(data_gdf, gpd.GeoDataFrame):
+        raise TypeError("data_gdf must be a geopandas.GeoDataFrame instance.")
+    if ax is not None and not isinstance(ax, (Axes)):
+        raise TypeError("ax must be a matplotlib.axes.Axes instance.")
+    if not isinstance(column, str):
+        raise TypeError("column must be a string.")
+    if not isinstance(location_name, str):
+        raise TypeError("location_name must be a string.")
+    if not isinstance(plot_osmnx_edges, tuple) or len(plot_osmnx_edges) != 2:
+        raise TypeError("plot_osmnx_edges must be a tuple with two elements: a boolean and a GeoDataFrame.")
+    if not isinstance(plot_boundary, tuple) or len(plot_boundary) != 2:
+        raise TypeError("plot_boundary must be a tuple with two elements: a boolean and a GeoDataFrame.")
+    if not isinstance(adjust_to, tuple) or len(adjust_to) != 2:
+        raise TypeError("adjust_to must be a tuple with two elements: a string (either 'boundary', 'edges' or '') and a list with two numeric values.")
+    if not isinstance(save_png, tuple) or len(save_png) != 2:
+        raise TypeError("save_png must be a tuple with two elements: a boolean and a string (file path).")
+    if not isinstance(png_transparency, bool):
+        raise TypeError("png_transparency must be a boolean value (True or False).")
+    if not isinstance(png_dpi, int):
+        raise TypeError("png_dpi must be an integer value.")
+    if not isinstance(save_pdf, tuple) or len(save_pdf) != 2:
+        raise TypeError("save_pdf must be a tuple with two elements: a boolean and a string (file path).")
+    
     # --------------- GENERAL PLOT STYLE
     data_linestyle = '-'
     data_linewidth = 0.35
@@ -911,17 +1018,18 @@ def plot_ndvi(data_gdf, ax,
         plt.savefig(save_pdf[1])
 
 
-def plot_temperature(data_gdf, ax,
+def plot_temperature(data_gdf: gpd.GeoDataFrame,
+                     ax: Axes,
                      column='',
                      location_name = '',
-                     plot_osmnx_edges = (False, ''),
-                     plot_boundary = (False, ''),
+                     plot_osmnx_edges = (False, gpd.GeoDataFrame),
+                     plot_boundary = (False, gpd.GeoDataFrame),
                      adjust_to = ('',[0.05,0.05]),
                      save_png = (False, '../output/figures/plot.png'),
                      png_transparency = False,
                      png_dpi = 300,
                      save_pdf = (False, '../output/figures/plot.pdf')
-                     ):
+                     ) -> None:
     """
     Creates a plot showing temperature analysis data.
 
@@ -942,10 +1050,10 @@ def plot_temperature(data_gdf, ax,
     location_name: str, default ''.
         Text containing the location (e.g. city name), used to be added in the main plot title.
         If not provided, the title will not contain a location name.
-    plot_osmnx_edges: tupple, default (False, '').
+    plot_osmnx_edges: tupple, default (False, gpd.GeoDataFrame).
         Tuple containing boolean on position [0]. If true, a gdf can be specified on position [1].
         The gdf must contain edges (line geometry) from Open Street Map with a column named 'highway' since the edges are shown according 'highway' values.
-    plot_boundary: tupple, default (False, '').
+    plot_boundary: tupple, default (False, gpd.GeoDataFrame).
         Tuple containing boolean on position [0]. If true, a gdf can be specified on position [1]
         The gdf must contain a boundary (polygon geometry) since the outline will be plotted.
     adjust_to: tupple, default ('',[0.05,0.05]).
@@ -968,9 +1076,38 @@ def plot_temperature(data_gdf, ax,
 
     Returns
     -------
-    None, plots proximity analysis.
+    None, plots temperature analysis.
+
+    Raises
+    ------
+    TypeError
+        If required inputs are missing or if inputs are invalid.
     
     """
+    # Input validation
+    if not isinstance(data_gdf, gpd.GeoDataFrame):
+        raise TypeError("data_gdf must be a geopandas.GeoDataFrame instance.")
+    if ax is not None and not isinstance(ax, (Axes)):
+        raise TypeError("ax must be a matplotlib.axes.Axes instance.")
+    if not isinstance(column, str):
+        raise TypeError("column must be a string.")
+    if not isinstance(location_name, str):
+        raise TypeError("location_name must be a string.")
+    if not isinstance(plot_osmnx_edges, tuple) or len(plot_osmnx_edges) != 2:
+        raise TypeError("plot_osmnx_edges must be a tuple with two elements: a boolean and a GeoDataFrame.")
+    if not isinstance(plot_boundary, tuple) or len(plot_boundary) != 2:
+        raise TypeError("plot_boundary must be a tuple with two elements: a boolean and a GeoDataFrame.")
+    if not isinstance(adjust_to, tuple) or len(adjust_to) != 2:
+        raise TypeError("adjust_to must be a tuple with two elements: a string (either 'boundary', 'edges' or '') and a list with two numeric values.")
+    if not isinstance(save_png, tuple) or len(save_png) != 2:
+        raise TypeError("save_png must be a tuple with two elements: a boolean and a string (file path).")
+    if not isinstance(png_transparency, bool):
+        raise TypeError("png_transparency must be a boolean value (True or False).")
+    if not isinstance(png_dpi, int):
+        raise TypeError("png_dpi must be an integer value.")
+    if not isinstance(save_pdf, tuple) or len(save_pdf) != 2:
+        raise TypeError("save_pdf must be a tuple with two elements: a boolean and a string (file path).")
+
     # --------------- GENERAL PLOT STYLE
     data_linestyle = '-'
     data_linewidth = 0.35
@@ -1117,10 +1254,10 @@ def plot_temperature(data_gdf, ax,
         plt.savefig(save_pdf[1])
 
 
-def plot_temperature_anomaly(data_gdf, ax, 
+def plot_temperature_anomaly(data_gdf: gpd.GeoDataFrame,
+                             ax: Axes, 
                              kwargs={}
-                             ):
-
+                             ) -> None:
     """
     Creates a plot showing temperature analysis results (data showing hotter or colder areas relative to the overall mean, divided in 7 categories).
     
@@ -1133,7 +1270,25 @@ def plot_temperature_anomaly(data_gdf, ax,
     kwargs: dict, default {}.
         Dictionary with additional parameters to be passed to the plot_temperature() function.
     
+    Returns
+    -------
+    None, plots temperature analysis.
+    
+    Raises
+    ------
+    TypeError
+        If required inputs are missing or if inputs are invalid.
+    
     """
+    # Input validation
+    if not isinstance(data_gdf, gpd.GeoDataFrame):
+        raise TypeError("data_gdf must be a geopandas.GeoDataFrame instance.")
+    if ax is not None and not isinstance(ax, (Axes)):
+        raise TypeError("ax must be a matplotlib.axes.Axes instance.")
+    if not isinstance(kwargs, dict):
+        raise TypeError("kwargs must be a dictionary.")
+    if 'data_gdf' in kwargs or 'ax' in kwargs:
+        raise TypeError("kwargs should not contain 'data_gdf' or 'ax' keys, they are already provided as parameters.")
     # Set column in order to make sure that a temperature anomaly plot is generated.
     kwargs['column'] = 'temperature_mean'
     # Call plot_temperature() function
@@ -1143,10 +1298,10 @@ def plot_temperature_anomaly(data_gdf, ax,
                      )
 
 
-def plot_temperature_tendency(data_gdf, ax, 
+def plot_temperature_tendency(data_gdf: gpd.GeoDataFrame,
+                              ax: Axes, 
                               kwargs={}
-                              ):
-
+                              ) -> None:
     """
     Creates a plot showing temperature tendency given the available years.
     
@@ -1159,7 +1314,26 @@ def plot_temperature_tendency(data_gdf, ax,
     kwargs: dict, default {}.
         Dictionary with additional parameters to be passed to the plot_temperature() function.
     
+    Returns
+    -------
+    None, plots temperature analysis.
+
+    Raises
+    ------
+    TypeError
+        If required inputs are missing or if inputs are invalid.
+    
     """
+    # Input validation
+    if not isinstance(data_gdf, gpd.GeoDataFrame):
+        raise TypeError("data_gdf must be a geopandas.GeoDataFrame instance.")
+    if ax is not None and not isinstance(ax, (Axes)):
+        raise TypeError("ax must be a matplotlib.axes.Axes instance.")
+    if not isinstance(kwargs, dict):
+        raise TypeError("kwargs must be a dictionary.")
+    if 'data_gdf' in kwargs or 'ax' in kwargs:
+        raise TypeError("kwargs should not contain 'data_gdf' or 'ax' keys, they are already provided as parameters.")
+    
     # Set column in order to make sure that a temperature tendency plot is generated.
     kwargs['column'] = 'temperature_tendency'
     # Call plot_temperature() function
