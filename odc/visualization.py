@@ -23,6 +23,7 @@ from matplotlib.offsetbox import OffsetImage, AnnotationBbox
 from matplotlib.axes import Axes
 
 from .data import *
+from .utils import *
 
 def hex_plot(ax, gdf_data, gdf_boundary, gdf_edges, column , title,save_png=False, save_pdf=False,show=False, name='plot',dpi=300,transparent=True, close_figure=True):
 	"""
@@ -430,7 +431,7 @@ def observatory_plot_format(ax: Axes,
         raise TypeError("legend_title must be a string.")
     if legend_type not in ['categorized', 'colorbar']:
         raise ValueError("legend_type must be either 'categorized' or 'colorbar'.")
-    if legend_type == 'colorbar' and (len(cmap_args) != 2 or not isinstance(cmap_args[0], plt.colormaps.Colormap) or not isinstance(cmap_args[1], colors.Normalize)):
+    if legend_type == 'colorbar' and (len(cmap_args) != 2 or not isinstance(cmap_args[0], colors.Colormap) or not isinstance(cmap_args[1], colors.Normalize)):
         raise ValueError("If using legent_type='colorbar', cmap_args must contain two elements: a colormap and a norm. The first element must be a matplotlib colormap and the second a matplotlib colors.Normalize instance.")
     if not isinstance(grid, bool):
         raise TypeError("grid must be a boolean value (True or False).")
@@ -606,10 +607,22 @@ def plot_proximity(data_gdf: gpd.GeoDataFrame,
         raise TypeError("column must be a string.")
     if not isinstance(location_name, str):
         raise TypeError("location_name must be a string.")
+    # Input validation for plot_osmnx_edges tupple
     if not isinstance(plot_osmnx_edges, tuple) or len(plot_osmnx_edges) != 2:
         raise TypeError("plot_osmnx_edges must be a tuple with two elements: a boolean and a GeoDataFrame.")
-    if not isinstance(plot_boundary, tuple) or len(plot_boundary) != 2:
-        raise TypeError("plot_boundary must be a tuple with two elements: a boolean and a GeoDataFrame.")
+    if plot_osmnx_edges[0]:
+        if not isinstance(plot_osmnx_edges[1], gpd.GeoDataFrame):
+            raise TypeError("If plot_osmnx_edges[0] is True, plot_osmnx_edges[1] must be a GeoDataFrame.")
+        if not all(plot_osmnx_edges[1].geometry.type.isin(["LineString", "MultiLineString"])):
+            raise TypeError("The GeoDataFrame must contain only LineString or MultiLineString geometries.")
+    # Input validation for plot_boundary tupple
+    if plot_boundary[0] and not isinstance(plot_boundary[1], gpd.GeoDataFrame):
+        raise TypeError("If plot_boundary[0] is True, plot_boundary[1] must be a geopandas.GeoDataFrame instance containing a boundary (polygon).")
+    if plot_boundary[0]:
+        if not isinstance(plot_boundary[1], gpd.GeoDataFrame):
+            raise TypeError("If plot_boundary[0] is True, plot_boundary[1] must be a GeoDataFrame.")
+        if not all(plot_boundary[1].geometry.type.isin(["Polygon", "MultiPolygon"])):
+            raise TypeError("The GeoDataFrame must contain only Polygon or MultiPolygon geometries.")
     if not isinstance(adjust_to, tuple) or len(adjust_to) != 2:
         raise TypeError("adjust_to must be a tuple with two elements: a string (either 'boundary', 'edges' or '') and a list with two numeric values.")
     if not isinstance(save_png, tuple) or len(save_png) != 2:
