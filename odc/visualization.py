@@ -613,24 +613,24 @@ def plot_proximity(data_gdf: gpd.GeoDataFrame,
         if not isinstance(plot_osmnx_edges[1], gpd.GeoDataFrame):
             raise TypeError("If plot_osmnx_edges[0] is True, plot_osmnx_edges[1] must be a GeoDataFrame.")
         if not all(plot_osmnx_edges[1].geometry.type.isin(["LineString", "MultiLineString"])):
-            raise TypeError("The GeoDataFrame must contain only LineString or MultiLineString geometries.")
+            raise TypeError("The plot_osmnx_edges[1] GeoDataFrame must contain only LineString or MultiLineString geometries.")
     # Input validation for plot_boundary tupple
-    if plot_boundary[0] and not isinstance(plot_boundary[1], gpd.GeoDataFrame):
-        raise TypeError("If plot_boundary[0] is True, plot_boundary[1] must be a geopandas.GeoDataFrame instance containing a boundary (polygon).")
+    if not isinstance(plot_boundary, tuple) or len(plot_boundary) != 2:
+        raise TypeError("plot_boundary must be a tuple with two elements: a boolean and a GeoDataFrame.")
     if plot_boundary[0]:
         if not isinstance(plot_boundary[1], gpd.GeoDataFrame):
             raise TypeError("If plot_boundary[0] is True, plot_boundary[1] must be a GeoDataFrame.")
         if not all(plot_boundary[1].geometry.type.isin(["Polygon", "MultiPolygon"])):
-            raise TypeError("The GeoDataFrame must contain only Polygon or MultiPolygon geometries.")
-    if not isinstance(adjust_to, tuple) or len(adjust_to) != 2:
+            raise TypeError("The plot_boundary[1] GeoDataFrame must contain only Polygon or MultiPolygon geometries.")
+    if not isinstance(adjust_to, tuple) or len(adjust_to) != 2 or (not all(isinstance(i, (int, float)) for i in adjust_to[1])):
         raise TypeError("adjust_to must be a tuple with two elements: a string (either 'boundary', 'edges' or '') and a list with two numeric values.")
-    if not isinstance(save_png, tuple) or len(save_png) != 2:
+    if not isinstance(save_png, tuple) or len(save_png) != 2 or not isinstance(save_png[1], str):
         raise TypeError("save_png must be a tuple with two elements: a boolean and a string (file path).")
     if not isinstance(png_transparency, bool):
         raise TypeError("png_transparency must be a boolean value (True or False).")
     if not isinstance(png_dpi, int):
         raise TypeError("png_dpi must be an integer value.")
-    if not isinstance(save_pdf, tuple) or len(save_pdf) != 2:
+    if not isinstance(save_pdf, tuple) or len(save_pdf) != 2 or not isinstance(save_pdf[1], str):
         raise TypeError("save_pdf must be a tuple with two elements: a boolean and a string (file path).")
     
     # --------------- DATA PLOT STYLE
@@ -883,19 +883,31 @@ def plot_ndvi(data_gdf: gpd.GeoDataFrame,
         raise TypeError("column must be a string.")
     if not isinstance(location_name, str):
         raise TypeError("location_name must be a string.")
+    # Input validation for plot_osmnx_edges tupple
     if not isinstance(plot_osmnx_edges, tuple) or len(plot_osmnx_edges) != 2:
         raise TypeError("plot_osmnx_edges must be a tuple with two elements: a boolean and a GeoDataFrame.")
+    if plot_osmnx_edges[0]:
+        if not isinstance(plot_osmnx_edges[1], gpd.GeoDataFrame):
+            raise TypeError("If plot_osmnx_edges[0] is True, plot_osmnx_edges[1] must be a GeoDataFrame.")
+        if not all(plot_osmnx_edges[1].geometry.type.isin(["LineString", "MultiLineString"])):
+            raise TypeError("The plot_osmnx_edges[1] GeoDataFrame must contain only LineString or MultiLineString geometries.")
+    # Input validation for plot_boundary tupple
     if not isinstance(plot_boundary, tuple) or len(plot_boundary) != 2:
         raise TypeError("plot_boundary must be a tuple with two elements: a boolean and a GeoDataFrame.")
-    if not isinstance(adjust_to, tuple) or len(adjust_to) != 2:
+    if plot_boundary[0]:
+        if not isinstance(plot_boundary[1], gpd.GeoDataFrame):
+            raise TypeError("If plot_boundary[0] is True, plot_boundary[1] must be a GeoDataFrame.")
+        if not all(plot_boundary[1].geometry.type.isin(["Polygon", "MultiPolygon"])):
+            raise TypeError("The plot_boundary[1] GeoDataFrame must contain only Polygon or MultiPolygon geometries.")
+    if not isinstance(adjust_to, tuple) or len(adjust_to) != 2 or (not all(isinstance(i, (int, float)) for i in adjust_to[1])):
         raise TypeError("adjust_to must be a tuple with two elements: a string (either 'boundary', 'edges' or '') and a list with two numeric values.")
-    if not isinstance(save_png, tuple) or len(save_png) != 2:
+    if not isinstance(save_png, tuple) or len(save_png) != 2 or not isinstance(save_png[1], str):
         raise TypeError("save_png must be a tuple with two elements: a boolean and a string (file path).")
     if not isinstance(png_transparency, bool):
         raise TypeError("png_transparency must be a boolean value (True or False).")
     if not isinstance(png_dpi, int):
         raise TypeError("png_dpi must be an integer value.")
-    if not isinstance(save_pdf, tuple) or len(save_pdf) != 2:
+    if not isinstance(save_pdf, tuple) or len(save_pdf) != 2 or not isinstance(save_pdf[1], str):
         raise TypeError("save_pdf must be a tuple with two elements: a boolean and a string (file path).")
     
     # --------------- DATA PLOT STYLE
@@ -1130,19 +1142,31 @@ def plot_temperature(data_gdf: gpd.GeoDataFrame,
         raise TypeError("column must be a string.")
     if not isinstance(location_name, str):
         raise TypeError("location_name must be a string.")
+    # Input validation for plot_osmnx_edges tupple
     if not isinstance(plot_osmnx_edges, tuple) or len(plot_osmnx_edges) != 2:
         raise TypeError("plot_osmnx_edges must be a tuple with two elements: a boolean and a GeoDataFrame.")
+    if plot_osmnx_edges[0]:
+        if not isinstance(plot_osmnx_edges[1], gpd.GeoDataFrame):
+            raise TypeError("If plot_osmnx_edges[0] is True, plot_osmnx_edges[1] must be a GeoDataFrame.")
+        if not all(plot_osmnx_edges[1].geometry.type.isin(["LineString", "MultiLineString"])):
+            raise TypeError("The plot_osmnx_edges[1] GeoDataFrame must contain only LineString or MultiLineString geometries.")
+    # Input validation for plot_boundary tupple
     if not isinstance(plot_boundary, tuple) or len(plot_boundary) != 2:
         raise TypeError("plot_boundary must be a tuple with two elements: a boolean and a GeoDataFrame.")
-    if not isinstance(adjust_to, tuple) or len(adjust_to) != 2:
+    if plot_boundary[0]:
+        if not isinstance(plot_boundary[1], gpd.GeoDataFrame):
+            raise TypeError("If plot_boundary[0] is True, plot_boundary[1] must be a GeoDataFrame.")
+        if not all(plot_boundary[1].geometry.type.isin(["Polygon", "MultiPolygon"])):
+            raise TypeError("The plot_boundary[1] GeoDataFrame must contain only Polygon or MultiPolygon geometries.")
+    if not isinstance(adjust_to, tuple) or len(adjust_to) != 2 or (not all(isinstance(i, (int, float)) for i in adjust_to[1])):
         raise TypeError("adjust_to must be a tuple with two elements: a string (either 'boundary', 'edges' or '') and a list with two numeric values.")
-    if not isinstance(save_png, tuple) or len(save_png) != 2:
+    if not isinstance(save_png, tuple) or len(save_png) != 2 or not isinstance(save_png[1], str):
         raise TypeError("save_png must be a tuple with two elements: a boolean and a string (file path).")
     if not isinstance(png_transparency, bool):
         raise TypeError("png_transparency must be a boolean value (True or False).")
     if not isinstance(png_dpi, int):
         raise TypeError("png_dpi must be an integer value.")
-    if not isinstance(save_pdf, tuple) or len(save_pdf) != 2:
+    if not isinstance(save_pdf, tuple) or len(save_pdf) != 2 or not isinstance(save_pdf[1], str):
         raise TypeError("save_pdf must be a tuple with two elements: a boolean and a string (file path).")
 
     # --------------- DATA PLOT STYLE
@@ -1387,7 +1411,7 @@ def plot_temperature_tendency(data_gdf: gpd.GeoDataFrame,
         raise TypeError("kwargs should not contain 'data_gdf' or 'ax' keys, they are already provided as parameters.")
     
     # Set column in order to make sure that a temperature tendency plot is generated.
-    kwargs['column'] = 'temperature_tendency'
+    kwargs['column'] = 'temperature_tend'
     # Call plot_temperature() function
     log("plot_temperature_tendency() - Calling plot_temperature() function.")
     plot_temperature(data_gdf=data_gdf,
