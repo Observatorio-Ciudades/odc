@@ -287,11 +287,11 @@ def kepler_config():
 
 
 def square_bounds(ax: Axes,
-                  bounds_gdf: gpd.GeoDataFrame, 
+                  bounds_gdf: gpd.GeoDataFrame,
                   boundary_expansion=[0.05,0.05]
                   ) -> None:
     """
-    Formats a ax's boundaries in order to set squared bounds around a given GeoDataFrame's geometry.
+    Formats an ax's boundaries in order to set squared bounds around a given GeoDataFrame's geometry inside a plot.
 
     This function takes an ax and modifies the its boundaries to set a squared boundary
     around the geometry of a given GeoDataFrame. These bounds can be expanded or contracted 
@@ -303,13 +303,13 @@ def square_bounds(ax: Axes,
     ax: matplotlib.axes
         ax to be modified using ax.set_xlim() and ax.set_ylim().
     bounds_gdf: geopandas.GeoDataFrame
-        GeoDataFrame with the geometry from which the initial bounding box is created.
+        GeoDataFrame with the geometry from which an initial bounding box is created.
     boundary_expansion: list, default [0.05,0.05].
         List with two numeric values that represent percentages used to expand the squared-boundary plot symmetrically.
         If no expansion is required, use [0,0], but note that the bounds will be very tight around the bounds_gdf.
         The first digit expands the x-axis and the second digit expands the y-axis.
         e.g. [0.05,0.10] would expand by 5% the horizontal bounds (2.5% to the left, 2.5% to the right)
-        and by 10% the vertical bounds (5% to the bottom, 5% to the top).
+        and by 10% the vertical bounds (5% to the bottom, 5% to the top), thereby plotting a rectangle with a larger x-axis than y-axis.
 
     Returns
     -------
@@ -324,46 +324,43 @@ def square_bounds(ax: Axes,
 
     """
     # Input validation
-    if ax is not None and not isinstance(ax, (Axes)):
+    if not isinstance(ax, (Axes)):
         raise TypeError("ax must be a matplotlib.axes.Axes instance.")
     if bounds_gdf is None or not isinstance(bounds_gdf, gpd.GeoDataFrame):
         raise TypeError("bounds_gdf must be a geopandas.GeoDataFrame instance.")
-    if not isinstance(boundary_expansion, list) or len(boundary_expansion) != 2:
+    if not isinstance(boundary_expansion, list) or len(boundary_expansion) != 2 or (not all(isinstance(i, (int, float)) for i in boundary_expansion)):
         raise ValueError("boundary_expansion must be a list with two numeric values.")
     
     # Calculate bounds_gdf's current bounding box
     minx, miny, maxx, maxy = bounds_gdf.total_bounds
     
-    # Find bounding box's larger size and its proportions relative to the shorter side
+    # Find bounding box's size difference (larger side minus smaller side) 
+    # in order to create a centered square bounding box
     x_dist = abs(maxx-minx)
     y_dist = abs(maxy-miny)
     larger_side = max(x_dist,y_dist)
     smaller_side = min(x_dist,y_dist)
-    #ax_proportions = larger_side/smaller_side #To be used in later function modifications
-
-    # Turn into squared bounds by adding the difference between the larger_side and the smaller_side to the smaller_side
     size_diff = larger_side-smaller_side
-    # If it is already a square, no need to calculate
-    if size_diff == 0:
+
+    # Find squeared bounding limits
+    if size_diff == 0: # If it is already a square, no need to calculate expansion
         square_minx = minx
         square_maxx = maxx
         square_miny = miny
         square_maxy = maxy
-    else:
-        # If x_dist is the larger, enlarge <y> side
-        if x_dist>y_dist:
-            square_minx = minx #<x> is larger size
-            square_maxx = maxx #<x> is larger size
-            square_miny = miny-(size_diff/2) #<y> is enlarged
-            square_maxy = maxy+(size_diff/2) #<y> is enlarged
-        # Else, y_dist is the larger, enlarge <x> side
-        else:
-            square_minx = minx-(size_diff/2) #<x> is enlarged
-            square_maxx = maxx+(size_diff/2) #<x> is enlarged
-            square_miny = miny #<y> is larger size
-            square_maxy = maxy #<y> is larger size
+    else: # Else, enlarge shorter side
+        if x_dist>y_dist: # (Here <x> is larger size and <y> is enlarged)
+            square_minx = minx 
+            square_maxx = maxx
+            square_miny = miny-(size_diff/2)
+            square_maxy = maxy+(size_diff/2)
+        else: #(Here <x> is enlarged and <y> is larger size)
+            square_minx = minx-(size_diff/2) 
+            square_maxx = maxx+(size_diff/2)
+            square_miny = miny
+            square_maxy = maxy
 
-    # Grow squared bound by specified values in boundary_expansion
+    # Use additional boundary_expansion values to expand the square bounds as requested
     expanded_square_minx = square_minx - (larger_side*boundary_expansion[0])/2
     expanded_square_maxx = square_maxx + (larger_side*boundary_expansion[0])/2
     expanded_square_miny = square_miny - (larger_side*boundary_expansion[1])/2
@@ -375,21 +372,21 @@ def square_bounds(ax: Axes,
 
 
 def observatory_plot_format(ax: Axes,
-                            plot_title: str, 
-                            legend_title: str, 
-                            legend_type: str, 
-                            cmap_args=[], 
+                            plot_title: str,
+                            legend_title: str,
+                            legend_type: str,
+                            cmap_args=[],
                             grid=False
                             ) -> None:
     """
-    Formats the plot to the observatory's style:
+    Formats the plot to the observatory's style.
 
     This function positions the title on the top left corner of the plot, formats the legend title in bold, 
     and places OdC's logo on the bottom right corner of the plot.
 
-    NOTE: Use this function after plotting all elements on it.
-        Since matplotlib updates the layout size and proportions to the elements inserted onto the map, 
-        this function must be used as a final plot formatting, after plotting all map elements.
+    NOTE: This function must be used after plotting all elements on it a given ax.
+    Since matplotlib updates the layout size and proportions to the elements inserted onto the map, 
+    this function must be used as a final plot formatting, after plotting all map elements.
     
     Parameters
     ----------
@@ -423,7 +420,7 @@ def observatory_plot_format(ax: Axes,
     
     """
     # Input validation
-    if ax is not None and not isinstance(ax, (Axes)):
+    if not isinstance(ax, (Axes)):
         raise TypeError("ax must be a matplotlib.axes.Axes instance.")
     if not isinstance(plot_title, str):
         raise TypeError("plot_title must be a string.")
@@ -480,6 +477,7 @@ def observatory_plot_format(ax: Axes,
         for text in legend.get_texts():
             text.set_fontsize(legend_fontsize)
     elif legend_type == 'colorbar':
+        # Create colorbar manually, which is a matplotlib.colorbar.ColorbarBase
         # Create a divider for the provided ax
         divider = make_axes_locatable(ax)
         # Create an axe for the colorbar (The size will be the "size%" of the main ax, while there's a spacing (pad) between the main ax and the colorbar)
@@ -513,7 +511,7 @@ def observatory_plot_format(ax: Axes,
     img = mpimg.imread(img_dir)
     # Calculate image zoom a) Get current image extent
     img_width_px = img.shape[1]
-    # Calculate image zoom c) Calculate required zoom so that image occupies ~10% of larger ax size
+    # Calculate image zoom b) Calculate required zoom so that image occupies ~10% of larger ax size
     target_fraction = 0.05
     img_zoom = (ax_largersize_px * target_fraction) / img_width_px
     # Insert image on bottom right corner with specified zoom
@@ -546,7 +544,7 @@ def plot_proximity(data_gdf: gpd.GeoDataFrame,
     Creates a plot showing proximity analysis data.
 
     This function can be used to plot a classical proximity analysis (time to amenities), the amenity count (how many amenities 
-    can be found on a given walking time) or a sigmodial analysis. The function defaults to mean proximity analysis.
+    can be found on a given walking time) or a sigmodial analysis. The function defaults to mean proximity analysis (using the 'mean_time' column).
     
     Parameters
     ----------
@@ -599,9 +597,10 @@ def plot_proximity(data_gdf: gpd.GeoDataFrame,
 
     """
     # Input validation
+    log("plot_proximity() - Validating inputs.")
     if not isinstance(data_gdf, gpd.GeoDataFrame):
         raise TypeError("data_gdf must be a geopandas.GeoDataFrame instance.")
-    if ax is not None and not isinstance(ax, (Axes)):
+    if not isinstance(ax, (Axes)):
         raise TypeError("ax must be a matplotlib.axes.Axes instance.")
     if not isinstance(column, str):
         raise TypeError("column must be a string.")
@@ -634,7 +633,7 @@ def plot_proximity(data_gdf: gpd.GeoDataFrame,
     if not isinstance(save_pdf, tuple) or len(save_pdf) != 2:
         raise TypeError("save_pdf must be a tuple with two elements: a boolean and a string (file path).")
     
-    # --------------- GENERAL PLOT STYLE
+    # --------------- DATA PLOT STYLE
     data_linestyle = '-'
     data_linewidth = 0.35
     data_edgecolor = 'white'
@@ -642,6 +641,7 @@ def plot_proximity(data_gdf: gpd.GeoDataFrame,
     # --------------- FOR AMENITY AVAILABILITY (COUNT) DATA
     # (e.g. column 'cultural_15min', which indicates the average number of kindergardens on a 15 minutes walk)
     if 'min' in column:
+        log("plot_proximity() - Identified 'min' in column. Creating plot for amenity availability (count) data.")
         # --- TITLE
         # Extract amenity name from column name
         amenity_name = column.split('_')[0]
@@ -662,12 +662,13 @@ def plot_proximity(data_gdf: gpd.GeoDataFrame,
                       linestyle=data_linestyle, linewidth=data_linewidth,
                       edgecolor=data_edgecolor, zorder=1)
         # Plot proximity data using the viridis color palette directly 
-        # (Canceled since setting legend=True doesn't allow for label size and formatting modification. Would require to divide ax previously to get cax)
+        # [Canceled since setting legend=True doesn't allow for label size and formatting modification. Would require to divide ax previously to get cax]
         #data_gdf.plot(ax=ax,column=column,cmap='viridis',legend=True,cax=cax,legend_kwds={'label':f"Column: {column}.",'orientation': "horizontal"},linestyle=data_linestyle,linewidth=data_linewidth,edgecolor=data_edgecolor,zorder=1)         
     
     # --------------- FOR PROXIMITY INDEX (IDX) DATA
     # (e.g. column 'idx_preescolar', which indicates the proximity index (using a sigmodial function) for kindergardens)
     elif 'idx' in column:
+        log("plot_proximity() - Identified 'idx' in column. Creating plot for proximity index (sigmodial) data.")
         # --- TITLE
         # Set plot title
         if column == 'idx_sum': #All-amenities index
@@ -689,12 +690,13 @@ def plot_proximity(data_gdf: gpd.GeoDataFrame,
                       linestyle=data_linestyle, linewidth=data_linewidth,
                       edgecolor=data_edgecolor, zorder=1)
         # Plot proximity data using the magma color palette directly
-        # (Canceled since setting legend=True doesn't allow for label size and formatting modification. Would require to divide ax previously to get cax)
+        # [Canceled since setting legend=True doesn't allow for label size and formatting modification. Would require to divide ax previously to get cax]
         #data_gdf.plot(ax=ax,column=column,cmap='magma',legend=True,cax=cax,legend_kwds={'label':f"Column: {column}.",'orientation': "horizontal"},linestyle=data_linestyle,linewidth=data_linewidth,edgecolor=data_edgecolor,zorder=1)
     
     # --------------- FOR PROXIMITY (TIME) DATA
     # (e.g. columns 'max_preescolar' or 'median_time', which indicates average time (minutes) data and is categorized in time bins)
     elif ('max' in column) or ('time' in column):
+        log("plot_proximity() - Identified 'time' or 'max' in column. Creating plot for proximity (time) data.")
         # --- TITLE
         # Set plot title
         if 'time' in column: #Time to all amenities
@@ -726,41 +728,47 @@ def plot_proximity(data_gdf: gpd.GeoDataFrame,
     # --------------- OPTIONAL COMPLEMENTS (Area of interest boundary and streets)
     # Plot boundary if available
     if plot_boundary[0]:
+        log("plot_proximity() - Plotting area of interest's boundary provided.")
         boundary_gdf = plot_boundary[1].copy()
         boundary_gdf.boundary.plot(ax=ax,color='#bebebe',linestyle='--',linewidth=0.75,zorder=2)
     # Plot edges if available
     if plot_osmnx_edges[0]:
+        log("plot_proximity() - Plotting Open Street Map edges provided.")
         edges_gdf = plot_osmnx_edges[1].copy()
-        # Plot edges (Main)
+        # Plot edges (Main, relevant on a regional scale)
         edges_shown_a = ['trunk','trunk_link','motorway','motorway_link']
         edges_gdf_main = edges_gdf[edges_gdf['highway'].isin(edges_shown_a)].copy()
         if len(edges_gdf_main) > 0:
-            edges_main=True
+            edges_main_available=True
             edges_gdf_main.plot(ax=ax,color='#000000',alpha=0.5,linewidth=1.0,zorder=3)
-        # Plot edges (Primary and secondary)
+        # Plot edges (Other relevant on a city scale)
         edges_shown_b = ['primary','primary_link']#,'secondary','secondary_link']
         edges_gdf_primary = edges_gdf[edges_gdf['highway'].isin(edges_shown_b)].copy()
         if len(edges_gdf_primary) > 0:
-            edges_primary=True
+            edges_primary_available=True
             edges_gdf_primary.plot(ax=ax,color='#000000',alpha=0.5,linewidth=0.50,zorder=3)
     
 	# --------------- FINAL PLOT FORMAT
     # FORMAT - AX SIZE - Edit ax size to fit specified gdf exclusively using square_bounds() function
     # If specified 'boundary' and boundary_gdf available
     if (adjust_to[0] == 'boundary') and (plot_boundary[0]):
+        log("plot_proximity() - Adjusting ax size to boundary provided.")
         square_bounds(ax, boundary_gdf, adjust_to[1])
     # Elif specified 'edges' and edges_gdf available
     elif (adjust_to[0] == 'edges') and (plot_osmnx_edges[0]):
-        if edges_main and edges_primary:
+        log("plot_proximity() - Adjusting ax size to edges provided.")
+        if edges_main_available and edges_primary_available:
             square_bounds(ax, pd.concat([edges_gdf_main,edges_gdf_primary]), adjust_to[1])
-        elif edges_main:
+        elif edges_main_available:
             square_bounds(ax, edges_gdf_main, adjust_to[1])
-        elif edges_primary:
+        elif edges_primary_available:
             square_bounds(ax, edges_gdf_primary, adjust_to[1])
         else:
+            log("plot_proximity() - No edges available to adjust ax size to. Using data_gdf instead.")
             square_bounds(ax, data_gdf, adjust_to[1])
     # Else, if specified something else, use data_gdf
     else:
+        log("plot_proximity() - Adjusting ax size to data_gdf.")
         square_bounds(ax, data_gdf, adjust_to[1])
 
     # FORMAT - OBSERVATORY'S PLOT FORMAT - Controls positioning, style and sizing for main title, legend, grid and logo.
@@ -770,6 +778,7 @@ def plot_proximity(data_gdf: gpd.GeoDataFrame,
     else:
         plot_title = plot_title+f' in {location_name.capitalize()}.'
     # Call observatory_plot_format() function
+    log("plot_proximity() - Formatting plot to observatory's style.")
     if legend_type=='colorbar':
         observatory_plot_format(ax=ax,
                                 plot_title=plot_title,
@@ -790,8 +799,10 @@ def plot_proximity(data_gdf: gpd.GeoDataFrame,
     # --------------- SAVING CONFIGURATIONS
     # Save or show plot
     if save_png[0]:
+        log(f"plot_proximity() - Saving plot as PNG in {save_png[1]}.")
         plt.savefig(save_png[1],dpi=png_dpi,transparent=png_transparency)
     if save_pdf[0]:
+        log(f"plot_proximity() - Saving plot as PDF in {save_pdf[1]}.")
         plt.savefig(save_pdf[1])
 
 
@@ -811,7 +822,7 @@ def plot_ndvi(data_gdf: gpd.GeoDataFrame,
     Creates a plot showing ndvi analysis data.
 
     This function can be used to plot NDVI analysis results (data divided in 5 vegetation categories) or NDVI tendency given the available years.
-    The function defaults to mean NDVI analysis results.
+    The function defaults to mean NDVI analysis results (using the 'ndvi_mean' column).
     
     Parameters
     ----------
@@ -863,9 +874,10 @@ def plot_ndvi(data_gdf: gpd.GeoDataFrame,
     
     """
     # Input validation
+    log("plot_proximity() - Validating inputs.")
     if not isinstance(data_gdf, gpd.GeoDataFrame):
         raise TypeError("data_gdf must be a geopandas.GeoDataFrame instance.")
-    if ax is not None and not isinstance(ax, (Axes)):
+    if not isinstance(ax, (Axes)):
         raise TypeError("ax must be a matplotlib.axes.Axes instance.")
     if not isinstance(column, str):
         raise TypeError("column must be a string.")
@@ -886,7 +898,7 @@ def plot_ndvi(data_gdf: gpd.GeoDataFrame,
     if not isinstance(save_pdf, tuple) or len(save_pdf) != 2:
         raise TypeError("save_pdf must be a tuple with two elements: a boolean and a string (file path).")
     
-    # --------------- GENERAL PLOT STYLE
+    # --------------- DATA PLOT STYLE
     data_linestyle = '-'
     data_linewidth = 0.35
     data_edgecolor = 'white'
@@ -894,6 +906,7 @@ def plot_ndvi(data_gdf: gpd.GeoDataFrame,
     # --------------- FOR TENDENCY (ndvi_tend)
     # (ndvi_tend indicates the data's tendency analysed in all available years)
     if column=='ndvi_tend':
+        log("plot_ndvi() - Identified 'ndvi_tend' in column. Creating plot for NDVI tendency data.")
         # --- TITLE
         # Create plot title
         plot_title = f"Tendency of NDVI data" #Whithout period at the end to add location name if provided
@@ -921,12 +934,13 @@ def plot_ndvi(data_gdf: gpd.GeoDataFrame,
                       linestyle=data_linestyle, linewidth=data_linewidth,
                       edgecolor=data_edgecolor, zorder=1)
         # Plot proximity data using the viridis color palette directly 
-        # (Canceled since setting legend=True doesn't allow for label size and formatting modification. Would require to divide ax previously to get cax)
+        # [Canceled since setting legend=True doesn't allow for label size and formatting modification. Would require to divide ax previously to get cax]
         #data_gdf.plot(ax=ax,column=column,cmap='viridis',legend=True,cax=cax,legend_kwds={'label':f"Column: {column}.",'orientation': "horizontal"},linestyle=data_linestyle,linewidth=data_linewidth,edgecolor=data_edgecolor,zorder=1)         
 
     # --------------- FOR NDVI VALUES
     # (e.g. columns 'max_preescolar' or 'median_time', which indicates average time (minutes) data and is categorized in time bins)
     else:
+        log("plot_ndvi() - Creating plot for NDVI values data.")
         # --- TITLE
         # Set plot title according to column used
         # If the fifth value starts with '2', its a year value. e.g. 'ndvi_2018'
@@ -962,41 +976,47 @@ def plot_ndvi(data_gdf: gpd.GeoDataFrame,
     # --------------- OPTIONAL COMPLEMENTS (Area of interest boundary and streets)
     # Plot boundary if available
     if plot_boundary[0]:
+        log("plot_ndvi() - Plotting area of interest's boundary provided.")
         boundary_gdf = plot_boundary[1].copy()
         boundary_gdf.boundary.plot(ax=ax,color='#bebebe',linestyle='--',linewidth=0.75,zorder=2)
     # Plot edges if available
     if plot_osmnx_edges[0]:
+        log("plot_ndvi() - Plotting Open Street Map edges provided.")
         edges_gdf = plot_osmnx_edges[1].copy()
-        # Plot edges (Main)
+        # Plot edges (Main, relevant on a regional scale)
         edges_shown_a = ['trunk','trunk_link','motorway','motorway_link']
         edges_gdf_main = edges_gdf[edges_gdf['highway'].isin(edges_shown_a)].copy()
         if len(edges_gdf_main) > 0:
-            edges_main=True
+            edges_main_available=True
             edges_gdf_main.plot(ax=ax,color='#000000',alpha=0.5,linewidth=1.0,zorder=3)
-        # Plot edges (Primary and secondary)
+        # Plot edges (Other relevant on a city scale)
         edges_shown_b = ['primary','primary_link']#,'secondary','secondary_link']
         edges_gdf_primary = edges_gdf[edges_gdf['highway'].isin(edges_shown_b)].copy()
         if len(edges_gdf_primary) > 0:
-            edges_primary=True
+            edges_primary_available=True
             edges_gdf_primary.plot(ax=ax,color='#000000',alpha=0.5,linewidth=0.50,zorder=3)
     
 	# --------------- FINAL PLOT FORMAT
     # FORMAT - AX SIZE - Edit ax size to fit specified gdf exclusively using square_bounds() function
     # If specified 'boundary' and boundary_gdf available
     if (adjust_to[0] == 'boundary') and (plot_boundary[0]):
+        log("plot_ndvi() - Adjusting ax size to boundary provided.")
         square_bounds(ax, boundary_gdf, adjust_to[1])
     # Elif specified 'edges' and edges_gdf available
     elif (adjust_to[0] == 'edges') and (plot_osmnx_edges[0]):
-        if edges_main and edges_primary:
+        log("plot_ndvi() - Adjusting ax size to edges provided.")
+        if edges_main_available and edges_primary_available:
             square_bounds(ax, pd.concat([edges_gdf_main,edges_gdf_primary]), adjust_to[1])
-        elif edges_main:
+        elif edges_main_available:
             square_bounds(ax, edges_gdf_main, adjust_to[1])
-        elif edges_primary:
+        elif edges_primary_available:
             square_bounds(ax, edges_gdf_primary, adjust_to[1])
         else:
+            log("plot_ndvi() - No edges available to adjust ax size to. Using data_gdf instead.")
             square_bounds(ax, data_gdf, adjust_to[1])
     # Else, if specified something else, use data_gdf
     else:
+        log("plot_ndvi() - Adjusting ax size to data_gdf.")
         square_bounds(ax, data_gdf, adjust_to[1])
 
     # FORMAT - OBSERVATORY'S PLOT FORMAT - Controls positioning, style and sizing for main title, legend, grid and logo.
@@ -1006,6 +1026,7 @@ def plot_ndvi(data_gdf: gpd.GeoDataFrame,
     else:
         plot_title = plot_title+f' in {location_name.capitalize()}.'
     # Call observatory_plot_format() function
+    log("plot_ndvi() - Formatting plot to observatory's style.")
     if legend_type=='colorbar':
         observatory_plot_format(ax=ax,
                                 plot_title=plot_title,
@@ -1026,8 +1047,10 @@ def plot_ndvi(data_gdf: gpd.GeoDataFrame,
     # --------------- SAVING CONFIGURATIONS
     # Save or show plot
     if save_png[0]:
+        log(f"plot_ndvi() - Saving plot as PNG in {save_png[1]}.")
         plt.savefig(save_png[1],dpi=png_dpi,transparent=png_transparency)
     if save_pdf[0]:
+        log(f"plot_ndvi() - Saving plot as PDF in {save_pdf[1]}.")
         plt.savefig(save_pdf[1])
 
 
@@ -1047,7 +1070,7 @@ def plot_temperature(data_gdf: gpd.GeoDataFrame,
     Creates a plot showing temperature analysis data.
 
     This function can be used to plot temperature analysis results (data showing hotter or colder areas relative to the overall mean, divided in 7 categories)
-    or temperature tendency given the available years. The function defaults to temperature analysis results.
+    or temperature tendency given the available years. The function defaults to temperature analysis results (using the 'temperature_mean' column).
     
     Parameters
     ----------
@@ -1098,9 +1121,10 @@ def plot_temperature(data_gdf: gpd.GeoDataFrame,
     
     """
     # Input validation
+    log("plot_temperature() - Validating inputs.")
     if not isinstance(data_gdf, gpd.GeoDataFrame):
         raise TypeError("data_gdf must be a geopandas.GeoDataFrame instance.")
-    if ax is not None and not isinstance(ax, (Axes)):
+    if not isinstance(ax, (Axes)):
         raise TypeError("ax must be a matplotlib.axes.Axes instance.")
     if not isinstance(column, str):
         raise TypeError("column must be a string.")
@@ -1121,7 +1145,7 @@ def plot_temperature(data_gdf: gpd.GeoDataFrame,
     if not isinstance(save_pdf, tuple) or len(save_pdf) != 2:
         raise TypeError("save_pdf must be a tuple with two elements: a boolean and a string (file path).")
 
-    # --------------- GENERAL PLOT STYLE
+    # --------------- DATA PLOT STYLE
     data_linestyle = '-'
     data_linewidth = 0.35
     data_edgecolor = 'white'
@@ -1129,6 +1153,7 @@ def plot_temperature(data_gdf: gpd.GeoDataFrame,
     # --------------- FOR TENDENCY (temperature_tend)
     # (temperature_tend indicates the data's tendency analysed in all available years)
     if column=='temperature_tend':
+        log("plot_temperature() - Identified 'temperature_tend' in column. Creating plot for temperature tendency data.")
         # --- TITLE
         # Create plot title
         plot_title = f"Tendency of temperature data" #Whithout period at the end to add location name if provided
@@ -1159,6 +1184,7 @@ def plot_temperature(data_gdf: gpd.GeoDataFrame,
     # --------------- FOR ANOMALY (temperature_anomaly)
     # (temperature_anomaly indicates the difference between the temperature_mean of each polygon and the overall (city) mean.
     else:
+        log("plot_temperature() - Creating plot for temperature anomaly data.")
         # Rewrite column, no other values are permitted.
         column='temperature_anomaly'
         # --- TITLE
@@ -1198,41 +1224,47 @@ def plot_temperature(data_gdf: gpd.GeoDataFrame,
     # --------------- OPTIONAL COMPLEMENTS (Area of interest boundary and streets)
     # Plot boundary if available
     if plot_boundary[0]:
+        log("plot_temperature() - Plotting area of interest's boundary provided.")
         boundary_gdf = plot_boundary[1].copy()
         boundary_gdf.boundary.plot(ax=ax,color='#bebebe',linestyle='--',linewidth=0.75,zorder=2)
     # Plot edges if available
     if plot_osmnx_edges[0]:
+        log("plot_temperature() - Plotting Open Street Map edges provided.")
         edges_gdf = plot_osmnx_edges[1].copy()
-        # Plot edges (Main)
+        # Plot edges (Main, relevant on a regional scale)
         edges_shown_a = ['trunk','trunk_link','motorway','motorway_link']
         edges_gdf_main = edges_gdf[edges_gdf['highway'].isin(edges_shown_a)].copy()
         if len(edges_gdf_main) > 0:
-            edges_main=True
+            edges_main_available=True
             edges_gdf_main.plot(ax=ax,color='#000000',alpha=0.5,linewidth=1.0,zorder=3)
-        # Plot edges (Primary and secondary)
+        # Plot edges (Other relevant on a city scale)
         edges_shown_b = ['primary','primary_link']#,'secondary','secondary_link']
         edges_gdf_primary = edges_gdf[edges_gdf['highway'].isin(edges_shown_b)].copy()
         if len(edges_gdf_primary) > 0:
-            edges_primary=True
+            edges_primary_available=True
             edges_gdf_primary.plot(ax=ax,color='#000000',alpha=0.5,linewidth=0.50,zorder=3)
     
 	# --------------- FINAL PLOT FORMAT
     # FORMAT - AX SIZE - Edit ax size to fit specified gdf exclusively using square_bounds() function
     # If specified 'boundary' and boundary_gdf available
     if (adjust_to[0] == 'boundary') and (plot_boundary[0]):
+        log("plot_temperature() - Adjusting ax size to boundary provided.")
         square_bounds(ax, boundary_gdf, adjust_to[1])
     # Elif specified 'edges' and edges_gdf available
     elif (adjust_to[0] == 'edges') and (plot_osmnx_edges[0]):
-        if edges_main and edges_primary:
+        log("plot_temperature() - Adjusting ax size to edges provided.")
+        if edges_main_available and edges_primary_available:
             square_bounds(ax, pd.concat([edges_gdf_main,edges_gdf_primary]), adjust_to[1])
-        elif edges_main:
+        elif edges_main_available:
             square_bounds(ax, edges_gdf_main, adjust_to[1])
-        elif edges_primary:
+        elif edges_primary_available:
             square_bounds(ax, edges_gdf_primary, adjust_to[1])
         else:
+            log("plot_temperature() - No edges available to adjust ax size to. Using data_gdf instead.")
             square_bounds(ax, data_gdf, adjust_to[1])
     # Else, if specified something else, use data_gdf
     else:
+        log("plot_temperature() - Adjusting ax size to data_gdf.")
         square_bounds(ax, data_gdf, adjust_to[1])
 
     # FORMAT - OBSERVATORY'S PLOT FORMAT - Controls positioning, style and sizing for main title, legend, grid and logo.
@@ -1242,6 +1274,7 @@ def plot_temperature(data_gdf: gpd.GeoDataFrame,
     else:
         plot_title = plot_title+f' in {location_name.capitalize()}.'
     # Call observatory_plot_format() function
+    log("plot_temperature() - Formatting plot to observatory's style.")
     if legend_type=='colorbar':
         observatory_plot_format(ax=ax,
                                 plot_title=plot_title,
@@ -1262,8 +1295,11 @@ def plot_temperature(data_gdf: gpd.GeoDataFrame,
     # --------------- SAVING CONFIGURATIONS
     # Save or show plot
     if save_png[0]:
+        log(f"plot_temperature() - Saving plot as PNG in {save_png[1]}.")
         plt.savefig(save_png[1],dpi=png_dpi,transparent=png_transparency)
     if save_pdf[0]:
+        log(f"plot_temperature() - Saving plot as PDF in {save_pdf[1]}.")
+
         plt.savefig(save_pdf[1])
 
 
@@ -1294,9 +1330,10 @@ def plot_temperature_anomaly(data_gdf: gpd.GeoDataFrame,
     
     """
     # Input validation
+    log("plot_temperature_anomaly() - Validating inputs.")
     if not isinstance(data_gdf, gpd.GeoDataFrame):
         raise TypeError("data_gdf must be a geopandas.GeoDataFrame instance.")
-    if ax is not None and not isinstance(ax, (Axes)):
+    if not isinstance(ax, (Axes)):
         raise TypeError("ax must be a matplotlib.axes.Axes instance.")
     if not isinstance(kwargs, dict):
         raise TypeError("kwargs must be a dictionary.")
@@ -1305,6 +1342,7 @@ def plot_temperature_anomaly(data_gdf: gpd.GeoDataFrame,
     # Set column in order to make sure that a temperature anomaly plot is generated.
     kwargs['column'] = 'temperature_mean'
     # Call plot_temperature() function
+    log("plot_temperature_anomaly() - Calling plot_temperature() function.")
     plot_temperature(data_gdf=data_gdf,
                      ax=ax,
                      **kwargs
@@ -1338,9 +1376,10 @@ def plot_temperature_tendency(data_gdf: gpd.GeoDataFrame,
     
     """
     # Input validation
+    log("plot_temperature_tendency() - Validating inputs.")
     if not isinstance(data_gdf, gpd.GeoDataFrame):
         raise TypeError("data_gdf must be a geopandas.GeoDataFrame instance.")
-    if ax is not None and not isinstance(ax, (Axes)):
+    if not isinstance(ax, (Axes)):
         raise TypeError("ax must be a matplotlib.axes.Axes instance.")
     if not isinstance(kwargs, dict):
         raise TypeError("kwargs must be a dictionary.")
@@ -1350,6 +1389,7 @@ def plot_temperature_tendency(data_gdf: gpd.GeoDataFrame,
     # Set column in order to make sure that a temperature tendency plot is generated.
     kwargs['column'] = 'temperature_tendency'
     # Call plot_temperature() function
+    log("plot_temperature_tendency() - Calling plot_temperature() function.")
     plot_temperature(data_gdf=data_gdf,
                      ax=ax,
                      **kwargs
