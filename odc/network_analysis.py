@@ -1,3 +1,9 @@
+################################################################################
+# Module: Network
+# Set of network processing and creation functions
+# updated: 02/08/2025
+################################################################################
+
 import igraph as ig
 import numpy as np
 import pandas as pd
@@ -103,7 +109,7 @@ def nearest_nodes(
         return nn
 
 
-def find_nearest(
+def find_nearest_point_to_node(
     G: MultiDiGraph,
     nodes: GeoDataFrame,
     gdf: GeoDataFrame,
@@ -737,7 +743,7 @@ def proximity_isochrone_from_osmid(
     return hull_geometry
 
 
-def pois_time(
+def calculate_time_to_pois(
     G: MultiDiGraph,
     nodes: GeoDataFrame,
     edges: GeoDataFrame,
@@ -806,7 +812,7 @@ def pois_time(
         return _handle_empty_pois(nodes, poi_name, count_pois)
 
     # Find or load nearest nodes
-    nearest = _find_nearest_nodes(G, nodes, pois, poi_name)
+    nearest = find_nearest_point_to_node(G, nodes, pois, poi_name)
 
     # Prepare network edges
     edges = _prepare_network_edges(edges, prox_measure, walking_speed, projected_crs)
@@ -820,7 +826,7 @@ def pois_time(
     return _format_output(nodes_time, poi_name, count_pois)
 
 
-def id_pois_time(
+def calculate_time_to_multi_geometry_pois(
     G: MultiDiGraph,
     nodes: GeoDataFrame,
     edges: GeoDataFrame,
@@ -837,7 +843,7 @@ def id_pois_time(
     """
     Calculate travel time to POIs derived from geometries of interest with unique IDs.
 
-    Extended version of pois_time for cases where POIs are derived from larger
+    Extended version of calculate_time_to_pois for cases where POIs are derived from larger
     geometric features (e.g., park vertices, bike lane segments). Groups POIs
     by their source geometry ID to avoid double-counting.
 
@@ -893,7 +899,8 @@ def id_pois_time(
         return _handle_empty_pois(nodes, poi_name, count_pois, use_nan=True)
 
     # Find or load nearest nodes
-    nearest = _find_nearest_nodes(G, nodes, pois, poi_name)
+    nearest = find_nearest_point_to_node(G, nodes, pois, return_distance=True)
+    log(f"Calculated nearest nodes for {len(nearest)} {poi_name} POIs")
 
     # Group by geometry ID and filter by distance
     nearest = _process_geometry_groups(nearest, nodes, goi_id, max_walking_distance)
@@ -957,15 +964,6 @@ def _handle_empty_pois(nodes: GeoDataFrame, poi_name: str, count_pois: Tuple[boo
                           'x', 'y', 'geometry']]
     else:
         return nodes_time[['osmid', f'time_{poi_name}', 'x', 'y', 'geometry']]
-
-
-def _find_nearest_nodes(G, nodes, pois, poi_name):
-    """Find nearest nodes or load from preprocessed file."""
-    nearest = find_nearest(G, nodes, pois, return_distance=True)
-    nearest = nearest.to_crs("EPSG:4326")
-    log(f"Calculated nearest nodes for {len(nearest)} {poi_name} POIs")
-
-    return nearest
 
 
 def _prepare_network_edges(edges, prox_measure, walking_speed, projected_crs):

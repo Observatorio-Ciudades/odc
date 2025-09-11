@@ -1,7 +1,7 @@
 ################################################################################
 # Module: Visualization
-# General visualization functions, mainly focused on kepler configurations
-# updated: 10/08/2023
+# General visualization functions for specific plotting and Kepler configurations
+# updated: 15/08/2025
 ################################################################################
 
 import matplotlib.pyplot as plt
@@ -45,6 +45,12 @@ def hex_plot(ax, gdf_data, gdf_boundary, gdf_edges, column , title,save_png=Fals
 		plt.close()
 	if show:
 		plt.show()
+
+def network_aoi_plot():
+    return None
+
+def hex_census_var_plot():
+    return None
 
 def hex_proximity_plot():
     return None

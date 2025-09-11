@@ -1,9 +1,16 @@
+################################################################################
+# Module: Data
+# General data management functions
+# updated: 31/07/2025
+################################################################################
+
 import shapely
 import geopandas as gpd
 import osmnx as ox
 import pandas as pd
 import numpy as np
 import h3
+import networkx as nx
 
 from pathlib import Path
 from typing import Union, List, Dict, Optional
@@ -132,7 +139,7 @@ def download_osm_network(
     area_of_interest: gpd.GeoDataFrame,
     method: str = 'from_polygon',
     network_type: str = 'all_private',
-) -> tuple[ox.MultiDiGraph, gpd.GeoDataFrame, gpd.GeoDataFrame]:
+) -> tuple[nx.MultiDiGraph, gpd.GeoDataFrame, gpd.GeoDataFrame]:
     """
     Download OSM network data and return graph, nodes, and edges.
 

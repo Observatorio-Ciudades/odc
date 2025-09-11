@@ -1,3 +1,10 @@
+################################################################################
+# Module: Analysis
+# Set of spatial data treatment and analysis functions
+# updated: 10/08/2025
+################################################################################
+
+
 import numpy as np
 import geopandas as gpd
 import pandas as pd
@@ -7,7 +14,6 @@ from scipy.spatial import Voronoi
 
 import math
 from scipy import optimize
-from math import sqrt
 
 from typing import Union, List, Dict, Optional, Callable
 

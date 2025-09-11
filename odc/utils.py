@@ -1,31 +1,17 @@
 ################################################################################
 # Module: Utilities
 # Set of utility functions for the project
-# updated: 08/08/2023
+# updated: 15/08/2025
 ################################################################################
 
-import pandas as pd
-import geopandas as gpd
-import osmnx as ox
 import os
-import igraph as ig
 import numpy as np
-import h3
-import shapely
-import logging
 import datetime as dt
-from shapely.geometry import Point, Polygon
-from matplotlib.patches import RegularPolygon
 import datetime as dt
 import logging as lg
 import sys
 
-import psycopg2
-from sqlalchemy import create_engine
-
 from . import settings
-from . import graph
-
 
 def ts(style="datetime", template=None):
     """Get current timestamp as string.
