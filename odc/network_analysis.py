@@ -1,7 +1,7 @@
 ################################################################################
 # Module: Network
 # Set of network processing and creation functions
-# updated: 02/08/2025
+# updated: 17/09/2025
 ################################################################################
 
 import igraph as ig
@@ -16,6 +16,7 @@ from sklearn.neighbors import BallTree
 from networkx import MultiDiGraph
 from geopandas import GeoDataFrame
 from typing import Union, List, Tuple, Optional, Callable
+from shapely.geometry import Point
 
 
 from .utils import *
@@ -384,7 +385,7 @@ def calculate_distance_nearest_poi(
         Used in output column naming.
     column_name : str
         Column name containing nearest node assignments for POIs.
-        Typically 'osmid' from find_nearest function.
+        Typically 'osmid' from find_nearest_point_to_node function.
     weight : str, default 'length'
         Edge attribute to use for distance calculations.
         Common values: 'length', 'time_min', 'travel_time'.
@@ -641,13 +642,13 @@ def proximity_isochrone(
     point_of_interest = point_of_interest.set_crs("EPSG:4326")
 
     # Find nearest osmnx node to center node
-    nearest = find_nearest(G, nodes, point_of_interest, return_distance= True)
+    nearest = find_nearest_point_to_node(G, nodes, point_of_interest, return_distance= True)
     nearest = nearest.set_crs("EPSG:4326")
 
     # Fill NANs in length with calculated length
     no_length = len(edges.loc[edges['length'].isna()])
     edges = edges.to_crs(projected_crs)
-    edges['length'].fillna(edges.length,inplace=True)
+    edges.loc[edges['length'].isna(), 'length'] = edges.loc[edges['length'].isna()].length
     edges = edges.to_crs("EPSG:4326")
     if no_length > 0:
         log(f"Calculated length for {no_length} edges that had no length data.")
@@ -682,7 +683,7 @@ def proximity_isochrone(
     nodes_at_15min = nodes_time.loc[nodes_time[f"{poi_name}_{count_pois[1]}min"]>0]
 
     # Create isochrone using convex hull to those nodes and add osmid from which this isochrone formed
-    hull_geometry = nodes_at_15min.unary_union.convex_hull
+    hull_geometry = nodes_at_15min.union_all()
 
     return hull_geometry
 
@@ -812,7 +813,7 @@ def calculate_time_to_pois(
         return _handle_empty_pois(nodes, poi_name, count_pois)
 
     # Find or load nearest nodes
-    nearest = find_nearest_point_to_node(G, nodes, pois, poi_name)
+    nearest = find_nearest_point_to_node(G, nodes, pois)
 
     # Prepare network edges
     edges = _prepare_network_edges(edges, prox_measure, walking_speed, projected_crs)
@@ -837,7 +838,7 @@ def calculate_time_to_multi_geometry_pois(
     goi_id: str,
     count_pois: Tuple[bool, int] = (False, 0),
     projected_crs: str = "EPSG:6372",
-    max_walking_distance: float = 80.0,
+    max_walking_distance: float = 500.0,
     progress_callback: Optional[Callable] = None
 ) -> GeoDataFrame:
     """
@@ -1042,7 +1043,7 @@ def _calculate_poi_distances_batch(nearest, nodes, edges, poi_name, count_pois, 
 def _process_geometry_groups(nearest, nodes, goi_id, max_walking_distance):
     """Process POI groups by geometry of interest ID."""
     # Group by node and geometry ID, keeping minimum distance
-    grouped = nearest.groupby(['osmid', goi_id]).agg({'distance_node': np.min}).reset_index()
+    grouped = nearest.groupby(['osmid', goi_id]).agg({'distance_node': 'min'}).reset_index()
 
     # Merge back with node geometries
     geom_gdf = nodes.reset_index()[['osmid', 'geometry']]
