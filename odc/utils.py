@@ -9,6 +9,7 @@ import numpy as np
 import datetime as dt
 import datetime as dt
 import logging as lg
+from pyproj import CRS
 import sys
 
 from . import settings
