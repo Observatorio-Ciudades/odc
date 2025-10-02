@@ -147,6 +147,9 @@ def find_nearest_point_to_node(
 
     gdf = gdf.copy()
 
+    if 'osmid' in nodes.columns:
+        nodes = nodes.set_index('osmid')
+
     osmnx_tuple = nearest_nodes(G, nodes, list(gdf.geometry.x),list(gdf.geometry.y), return_dist=return_distance)
 
     if return_distance:
@@ -291,7 +294,7 @@ def voronoi_cpu(
         which seed (by index in seeds array) the corresponding node belongs to.
     """
 
-    return seeds[np.array(g.shortest_paths_dijkstra(seeds, weights=weights)).argmin(axis=0)]
+    return seeds[np.array(g.distances(seeds, weights=weights, algorithm='dijkstra')).argmin(axis=0)]
 
 
 def get_distances(
@@ -333,7 +336,7 @@ def get_distances(
         - If count_pois[0]=True: Includes count of nearby POIs
     """
 
-    shortest_paths = np.array(g.shortest_paths_dijkstra(seeds,weights=weights))
+    shortest_paths = np.array(g.distances(seeds,weights=weights,algorithm='dijkstra'))
     distances = [np.min(shortest_paths[:,i]) for i in range(len(voronoi_assignment))]
 
     if get_nearest_poi:
@@ -517,8 +520,8 @@ def create_network(
     nodes['osmid'] = ((nodes.geometry.x).astype(int)).astype(str)+((nodes.geometry.y).astype(int)).astype(str)
 
     ##Set columns in edges for to [u] from[v] columns
-    edges['u'] = np.nan
-    edges['v'] = np.nan
+    edges['u'] = ''
+    edges['v'] = ''
     edges.u.astype(str)
     edges.v.astype(str)
 
@@ -588,7 +591,7 @@ def calculate_isochrone(
     """
 
     sub_G = nx.ego_graph(G, center_node, radius=trip_length, undirected=undirected, distance=weight_column)
-    geometry = gpd.GeoSeries([Point((data["x"], data["y"])) for node, data in sub_G.nodes(data=True)]).unary_union.convex_hull
+    geometry = gpd.GeoSeries([Point((data["x"], data["y"])) for node, data in sub_G.nodes(data=True)]).union_all()
     if subgraph:
         return sub_G, geometry
     else:
@@ -902,6 +905,7 @@ def calculate_time_to_multi_geometry_pois(
     # Find or load nearest nodes
     nearest = find_nearest_point_to_node(G, nodes, pois, return_distance=True)
     log(f"Calculated nearest nodes for {len(nearest)} {poi_name} POIs")
+    log(nearest)
 
     # Group by geometry ID and filter by distance
     nearest = _process_geometry_groups(nearest, nodes, goi_id, max_walking_distance)
@@ -930,6 +934,9 @@ def _validate_pois_time_inputs(G, nodes, edges, pois, poi_name, prox_measure, wa
 
     if walking_speed <= 0:
         raise ValueError("walking_speed must be positive")
+
+    if 'osmid' not in nodes.columns:
+        nodes = nodes.reset_index()
 
     required_columns = {'nodes': ['osmid'], 'edges': ['u', 'v'], 'pois': ['geometry']}
     for df_name, df in [('nodes', nodes), ('edges', edges), ('pois', pois)]:

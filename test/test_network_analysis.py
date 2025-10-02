@@ -75,7 +75,9 @@ class TestNetworkAnalysis:
     # Test find_nearest function
     def test_find_nearest_basic(self, sample_graph, sample_nodes, sample_pois):
         """Test basic find nearest functionality."""
-        result = network_analysis.find_nearest_point_to_node(sample_graph, sample_nodes, sample_pois)
+        result = network_analysis.find_nearest_point_to_node(sample_graph, 
+                                                             sample_nodes,
+                                                             sample_pois)
         assert 'osmid' in result.columns
         assert len(result) == len(sample_pois)
         assert result['osmid'].notna().all()
@@ -94,7 +96,7 @@ class TestNetworkAnalysis:
         assert graph.vcount() == len(sample_nodes)
 
     # Test get_seeds function
-    def test_get_seeds_basic(self, sample_nodes, sample_edges, sample_pois):
+    def test_get_seeds_basic(self, sample_nodes, sample_edges, sample_pois, sample_graph):
         """Test seed generation for Voronoi calculation."""
         nodes_copy = sample_nodes.reset_index()
         edges_copy = sample_edges.copy()
@@ -102,7 +104,11 @@ class TestNetworkAnalysis:
         graph, weights, node_mapping = network_analysis.to_igraph(nodes_copy, edges_copy)
 
         # Create test data with osmid column
-        test_gdf = gpd.GeoDataFrame({'osmid': [1, 2]})
+        pois_test = sample_pois.copy()
+        G_copy = sample_graph.copy()
+        test_gdf = network_analysis.find_nearest_point_to_node(G_copy, 
+                                                               nodes_copy,
+                                                               pois_test)
         seeds = network_analysis.get_seeds(test_gdf, node_mapping, 'osmid')
 
         assert isinstance(seeds, np.ndarray)
@@ -138,16 +144,19 @@ class TestNetworkAnalysis:
         assert all(d >= 0 for d in distances)
 
     # Test calculate_distance_nearest_poi function
-    def test_calculate_distance_nearest_poi_basic(self, sample_nodes, sample_edges):
+    def test_calculate_distance_nearest_poi_basic(self, sample_nodes, sample_edges, sample_pois, sample_graph):
         """Test POI distance calculation."""
         # Create test POI data with osmid assignments
-        test_pois = gpd.GeoDataFrame({
-            'osmid': [1, 3],
-            'geometry': [Point(0, 0), Point(1, 1)]
-        }, crs='EPSG:4326')
-
+        test_pois = sample_pois.copy()
+        nodes_test = sample_nodes.reset_index()
+        
+        G_copy = sample_graph.copy()
+        test_pois = network_analysis.find_nearest_point_to_node(G_copy, 
+                                                               sample_nodes,
+                                                               test_pois)
+        
         result = network_analysis.calculate_distance_nearest_poi(
-            test_pois, sample_nodes.reset_index(), sample_edges,
+            test_pois, nodes_test, sample_edges,
             'test_poi', 'osmid', weight='length'
         )
 
@@ -189,18 +198,12 @@ class TestNetworkAnalysis:
         assert all(col in result_edges.columns for col in ['u', 'v', 'key', 'length'])
 
     # Test calculate_isochrone function
-    def test_calculate_isochrone_basic(self, sample_nodes, sample_edges):
+    def test_calculate_isochrone_basic(self, sample_nodes, sample_edges, sample_graph):
         """Test isochrone calculation."""
-        # Create graph with node coordinates
-        G = nx.MultiDiGraph()
-        for _, edge in sample_edges.iterrows():
-            G.add_edge(edge['u'], edge['v'], length=edge['length'])
-
-        for node_id, node in sample_nodes.iterrows():
-            G.nodes[node_id]['x'] = node['x']
-            G.nodes[node_id]['y'] = node['y']
-
-        isochrone = network_analysis.calculate_isochrone(G, 1, 150.0, 'length')
+        center_node_osmid = 268684269
+        isochrone = network_analysis.calculate_isochrone(sample_graph,
+                                                         center_node_osmid,
+                                                         500.0, 'length')
 
         assert hasattr(isochrone, 'area')
         assert isochrone.area > 0
@@ -209,7 +212,7 @@ class TestNetworkAnalysis:
     def test_proximity_isochrone_basic(self, sample_graph, sample_nodes, sample_edges):
         """Test proximity-based isochrone."""
         poi = gpd.GeoDataFrame({
-            'geometry': [Point(19.3976424,-99.1428684)]
+            'geometry': [Point(-99.1428684, 19.3976424)]
         }, crs='EPSG:4326')
 
         result = network_analysis.proximity_isochrone(sample_graph, sample_nodes, sample_edges, poi, 15)
@@ -220,7 +223,7 @@ class TestNetworkAnalysis:
     def test_pois_time_basic(self, sample_graph, sample_nodes, sample_edges, sample_pois):
         """Test basic POI time analysis."""
         result = network_analysis.calculate_time_to_pois(
-            sample_graph, sample_nodes.reset_index(), sample_edges,
+            sample_graph, sample_nodes, sample_edges,
             sample_pois, "hospital", "length"
         )
 
@@ -244,9 +247,9 @@ class TestNetworkAnalysis:
         """Test geometry-grouped POI analysis."""
         pois_with_goi = gpd.GeoDataFrame({
             'park_id': ['park_1', 'park_1', 'park_2'],
-            'geometry': [Point(19.3964740,-99.1451698),
-                Point(19.3964485,-99.1449053),
-                Point(19.4010425,-99.1377683)]
+            'geometry': [Point(-99.1415698, 19.3964740),
+                Point(-99.1449053, 19.3964485),
+                Point(-99.1377683, 19.4010425)]
         }, crs='EPSG:4326')
 
         result = network_analysis.calculate_time_to_multi_geometry_pois(
