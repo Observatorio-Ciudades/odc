@@ -54,8 +54,8 @@ class TestNetworkAnalysis:
         """Sample points of interest."""
         return gpd.GeoDataFrame({
             'poi_id': ['A', 'B'],
-            'geometry': [Point(19.3987151,-99.1439583),
-                Point(19.3934174,-99.1392214)]
+            'geometry': [Point(-99.1439583,19.3987151),
+                Point(-99.1392214,19.3934174)]
         }, crs='EPSG:4326')
 
     # Test nearest_nodes function
@@ -200,7 +200,7 @@ class TestNetworkAnalysis:
     # Test calculate_isochrone function
     def test_calculate_isochrone_basic(self, sample_nodes, sample_edges, sample_graph):
         """Test isochrone calculation."""
-        center_node_osmid = 268684269
+        center_node_osmid = 12131003016
         isochrone = network_analysis.calculate_isochrone(sample_graph,
                                                          center_node_osmid,
                                                          500.0, 'length')

@@ -591,7 +591,10 @@ def calculate_isochrone(
     """
 
     sub_G = nx.ego_graph(G, center_node, radius=trip_length, undirected=undirected, distance=weight_column)
-    geometry = gpd.GeoSeries([Point((data["x"], data["y"])) for node, data in sub_G.nodes(data=True)]).union_all()
+    geom = gpd.GeoSeries([Point((data["x"], data["y"])) for node, data in sub_G.nodes(data=True)])
+    geom = gpd.GeoDataFrame(geometry=geom)
+    geometry = geom.geometry.union_all().convex_hull
+    log(geometry)
     if subgraph:
         return sub_G, geometry
     else:
@@ -686,7 +689,7 @@ def proximity_isochrone(
     nodes_at_15min = nodes_time.loc[nodes_time[f"{poi_name}_{count_pois[1]}min"]>0]
 
     # Create isochrone using convex hull to those nodes and add osmid from which this isochrone formed
-    hull_geometry = nodes_at_15min.union_all()
+    hull_geometry = nodes_at_15min.union_all().convex_hull
 
     return hull_geometry
 
