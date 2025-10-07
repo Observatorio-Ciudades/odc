@@ -1,7 +1,7 @@
 ################################################################################
 # Module: Census_MX
 # Set of Census data treatment and analysis function for Mexico
-# updated: 05/08/2025
+# updated: 07/10/2025
 ################################################################################
 
 import geopandas as gpd
