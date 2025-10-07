@@ -131,7 +131,7 @@ def socio_polygon_to_points(
 
     try:
         # Step 1: Calculate number of nodes within each polygon
-        log(f"Performing spatial join between {len(nodes)} nodes and {len(gdf_socio)} polygons")
+        log(f"Performing spatial join between {len(points)} nodes and {len(gdf_socio)} polygons")
 
         # Ensure both GeoDataFrames have the same CRS for spatial join
         if points.crs != gdf_socio.crs:
@@ -177,9 +177,10 @@ def socio_polygon_to_points(
 
             # Convert to numeric, handling any non-numeric values
             socio_with_counts[col] = pd.to_numeric(socio_with_counts[col], errors='coerce')
+            socio_with_counts[col] = socio_with_counts[col].astype(float)
 
             # Skip division for columns with zero points (would result in inf/NaN)
-            mask_has_points = socio_with_counts['nodes_count'] > 0
+            mask_has_points = socio_with_counts['points_count'] > 0
 
             if col in avg_columns:
                 # For average columns, keep the original value (don't divide)
@@ -188,7 +189,7 @@ def socio_polygon_to_points(
                 # For other columns, divide by number of nodes
                 socio_with_counts.loc[mask_has_points, col] = (
                     socio_with_counts.loc[mask_has_points, col] /
-                    socio_with_counts.loc[mask_has_points, 'nodes_count']
+                    socio_with_counts.loc[mask_has_points, 'points_count']
                 )
 
         # Step 4: Ensure target CRS
@@ -203,7 +204,7 @@ def socio_polygon_to_points(
 
         # Step 6: Clean up result
         # Remove helper columns and spatial join artifacts
-        columns_to_drop = ['nodes_count', 'index_right']
+        columns_to_drop = ['points_count', 'index_right']
         columns_to_drop = [col for col in columns_to_drop if col in result.columns]
 
         if columns_to_drop:
@@ -224,7 +225,7 @@ def socio_points_to_polygon(
     cve_column: str,
     string_columns: List[str],
     wgt_dict: Optional[Dict[str, str]] = None,
-    avg_column: Optional[List[str]] = None,  # Keep original name for compatibility
+    avg_columns: Optional[List[str]] = None,  # Keep original name for compatibility
     include_nearest: bool = False,
     points_id_column: Optional[str] = None,
     projected_crs: str = "EPSG:6372",
@@ -250,7 +251,7 @@ def socio_points_to_polygon(
     wgt_dict : dict, optional
         Dictionary mapping column names to weight column names for weighted averages.
         Format: {'column_to_average': 'weight_column'}
-    avg_column : list of str, optional
+    avg_columns : list of str, optional
         Column names that should be averaged rather than summed.
         These typically include rates, percentages, or intensive variables
     include_nearest : bool, default False
@@ -415,7 +416,7 @@ def socio_points_to_polygon(
             agg_dict = group_sociodemographic_data(
                 df_socio=polygon_points,
                 numeric_cols=numeric_columns,
-                avg_column=avg_column,
+                avg_column=avg_columns,
                 avg_dict=wgt_dict
             )
 
@@ -855,41 +856,41 @@ def _apply_demographic_equations(blocks: pd.DataFrame, extended_logs: bool) -> p
 
 def _apply_gender_relationships(blocks: pd.DataFrame) -> pd.DataFrame:
     """Apply gender-based demographic relationships."""
-
+    
     # Total population = Female + Male population
-    blocks['POBTOT'].fillna(blocks['POBFEM'] + blocks['POBMAS'], inplace=True)
-    blocks['POBFEM'].fillna(blocks['POBTOT'] - blocks['POBMAS'], inplace=True)
-    blocks['POBMAS'].fillna(blocks['POBTOT'] - blocks['POBFEM'], inplace=True)
-
+    blocks.fillna({'POBTOT': blocks['POBFEM'] + blocks['POBMAS']}, inplace=True)
+    blocks.fillna({'POBFEM': blocks['POBTOT'] - blocks['POBMAS']}, inplace=True)
+    blocks.fillna({'POBMAS': blocks['POBTOT'] - blocks['POBFEM']}, inplace=True)
+    
     # Age groups by gender
     age_groups = ['P_0A2', 'P_3A5', 'P_6A11', 'P_12A14', 'P_15A17', 'P_18A24', 'P_60YMAS']
-
+    
     for age_group in age_groups:
         total_col = age_group
         female_col = f"{age_group}_F"
         male_col = f"{age_group}_M"
-
+        
         if all(col in blocks.columns for col in [total_col, female_col, male_col]):
-            blocks[total_col].fillna(blocks[female_col] + blocks[male_col], inplace=True)
-            blocks[female_col].fillna(blocks[total_col] - blocks[male_col], inplace=True)
-            blocks[male_col].fillna(blocks[total_col] - blocks[female_col], inplace=True)
-
+            blocks.fillna({total_col: blocks[female_col] + blocks[male_col]}, inplace=True)
+            blocks.fillna({female_col: blocks[total_col] - blocks[male_col]}, inplace=True)
+            blocks.fillna({male_col: blocks[total_col] - blocks[female_col]}, inplace=True)
+    
     return blocks
 
 
 def _apply_age_group_relationships(blocks: pd.DataFrame) -> pd.DataFrame:
     """Apply age group sum relationships."""
-
+    
     # POBTOT = P_0A2 + P_3YMAS
-    blocks['P_0A2'].fillna(blocks['POBTOT'] - blocks['P_3YMAS'], inplace=True)
-    blocks['P_3YMAS'].fillna(blocks['POBTOT'] - blocks['P_0A2'], inplace=True)
-
+    blocks.fillna({'P_0A2': blocks['POBTOT'] - blocks['P_3YMAS']}, inplace=True)
+    blocks.fillna({'P_3YMAS': blocks['POBTOT'] - blocks['P_0A2']}, inplace=True)
+    
     # Apply same logic to gender-specific columns
-    blocks['P_0A2_F'].fillna(blocks['POBFEM'] - blocks['P_3YMAS_F'], inplace=True)
-    blocks['P_3YMAS_F'].fillna(blocks['POBFEM'] - blocks['P_0A2_F'], inplace=True)
-    blocks['P_0A2_M'].fillna(blocks['POBMAS'] - blocks['P_3YMAS_M'], inplace=True)
-    blocks['P_3YMAS_M'].fillna(blocks['POBMAS'] - blocks['P_0A2_M'], inplace=True)
-
+    blocks.fillna({'P_0A2_F': blocks['POBFEM'] - blocks['P_3YMAS_F']}, inplace=True)
+    blocks.fillna({'P_3YMAS_F': blocks['POBFEM'] - blocks['P_0A2_F']}, inplace=True)
+    blocks.fillna({'P_0A2_M': blocks['POBMAS'] - blocks['P_3YMAS_M']}, inplace=True)
+    blocks.fillna({'P_3YMAS_M': blocks['POBMAS'] - blocks['P_0A2_M']}, inplace=True)
+    
     return blocks
 
 
@@ -926,13 +927,13 @@ def _apply_cohort_equations(blocks: pd.DataFrame, younger_cols: List[str], older
 
     # Total = sum of younger groups + older group
     younger_sum = blocks[younger_cols].sum(axis=1, min_count=1)
-    blocks[older_col].fillna(blocks[total_col] - younger_sum, inplace=True)
+    blocks.fillna({older_col : blocks[total_col] - younger_sum}, inplace=True)
 
     # Each younger group = total - other groups
     for i, target_col in enumerate(younger_cols):
         other_cols = [col for j, col in enumerate(younger_cols) if j != i] + [older_col]
         other_sum = blocks[other_cols].sum(axis=1, min_count=1)
-        blocks[target_col].fillna(blocks[total_col] - other_sum, inplace=True)
+        blocks.fillna({target_col : blocks[total_col] - other_sum}, inplace=True)
 
 
 def _apply_supplementary_relationships(blocks: pd.DataFrame) -> pd.DataFrame:
@@ -959,13 +960,14 @@ def _apply_supplementary_relationships(blocks: pd.DataFrame) -> pd.DataFrame:
     detailed_0_14 = ['P_0A2', 'P_3A5', 'P_6A11', 'P_12A14']
     if all(col in blocks.columns for col in detailed_0_14 + ['POB0_14']):
         detailed_sum = blocks[detailed_0_14].sum(axis=1, min_count=1)
-        blocks['POB0_14'].fillna(detailed_sum, inplace=True)
+        # blocks['POB0_14'].fillna(detailed_sum, inplace=True)
+        blocks.fillna({'POB0_14' : detailed_sum}, inplace=True)
 
         # Reverse calculation for individual age groups
         for target_col in detailed_0_14:
             other_cols = [col for col in detailed_0_14 if col != target_col]
             other_sum = blocks[other_cols].sum(axis=1, min_count=1)
-            blocks[target_col].fillna(blocks['POB0_14'] - other_sum, inplace=True)
+            blocks.fillna({target_col : blocks['POB0_14'] - other_sum}, inplace=True)
 
     return blocks
 
@@ -1004,7 +1006,7 @@ def _apply_ageb_distribution(
             ageb_total = ageb_row[col].iloc[0]
             current_sum = blocks[col].sum()
             missing_value = ageb_total - current_sum
-            blocks[col].fillna(missing_value, inplace=True)
+            blocks.fillna({col : missing_value}, inplace=True)
             solved_by_ageb += 1
         elif nan_count > 1:
             # Multiple missing values - proportional distribution
