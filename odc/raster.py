@@ -37,6 +37,20 @@ from typing import List, Dict, Optional, Union, Tuple, Any
 import os
 from pathlib import Path
 
+# UPDATES (Work in progress)
+# General - Changed 'query' to 'sat_query' to avoid confusion with other query parameters - UPDATED 07/10/2025
+# _check_available_data() - Changed df_rol to roll 'data_id' col only - UPDATED 07/10/2025
+# gather_items() - Added log - UPDATED 07/10/2025
+# available_datasets() - Fixed tile counting for satellite landsat-c2-l2 and saved aoi_tiles in self. - UPDATED 07/10/2025
+# create_raster_by_month() updated up to raster_download_date_preprocessing() - UPDATED 07/10/2025
+
+# CHECKED
+# create_area_of_interest() - CHECKED 07/10/2025
+# create_time_of_interest() - CHECKED 07/10/2025
+# link_dict() - CHECKED 07/10/2025
+# df_date_links() - CHECKED 07/10/2025
+
+
 # Flags to ignore division by zero and invalid floating point operations
 np.seterr(divide='ignore', invalid='ignore')
 
@@ -52,13 +66,17 @@ class NanValues(Exception):
     def __init__(self, message):
         self.message = message
 
+# UPDATED 07/10/2025
 def available_data_check(df_raster_inventory, missing_months, pct_limit=50, window_limit=6):
     pct_missing = round(missing_months/len(df_raster_inventory),2)*100
     log(f'Created DataFrame with {missing_months} ({pct_missing}%) missing months')
     if pct_missing >= pct_limit:
+        log("available_data_check() - Missing more than 50 percent of data points.")
         raise AvailableData('Missing more than 50 percent of data points')
-    df_rol = df_raster_inventory.rolling(window_limit).sum()
+    df_rol = df_raster_inventory['data_id'].rolling(window_limit).sum()
+    # If any rolling window has a sum of 0, it means there are multiple missing months together
     if len(df_rol.loc[df_rol.data_id==0])>0:
+        log("available_data_check() - Multiple missing months together.")
         raise AvailableData('Multiple missing months together')
     del df_rol
 
@@ -79,7 +97,7 @@ class PCRasterData():
 
     Optional Parameters (with defaults):
         freq: Frequency for date range ("MS" for month start)
-        query: Additional query parameters for satellite data
+        sat_query: Additional query parameters for satellite data
         satellite: Satellite to use ("sentinel-2-l2a" or "landsat-c2-l2")
         projection_crs: CRS for projections ("EPSG:6372")
         catalog: STAC catalog URL
@@ -124,7 +142,7 @@ class PCRasterData():
                             Format: {'band_name': [upscale_factor, band_identifier]}
             index_equation: Mathematical equation for index calculation using band names
                             Format: ['(nir-red)/(nir+red)'] for NDVI
-            **kwargs: Optional parameters (freq, query, satellite, etc.)
+            **kwargs: Optional parameters (freq, sat_query, satellite, etc.)
 
         Raises:
             TypeError: If gdf is not a GeoDataFrame
@@ -144,7 +162,7 @@ class PCRasterData():
         # === DEFAULT VALUES FOR OPTIONAL PARAMETERS ===
         defaults = {
             'freq': "MS",
-            'query': {},
+            'sat_query': {},
             'satellite': "sentinel-2-l2a",
             'projection_crs': "EPSG:6372",
             'catalog': "https://planetarycomputer.microsoft.com/api/stac/v1",
@@ -157,7 +175,7 @@ class PCRasterData():
 
         # === SET OPTIONAL PARAMETERS ===
         self.freq: str = kwargs.get('freq', defaults['freq'])
-        self.query: Dict = kwargs.get('query', defaults['query'].copy())
+        self.sat_query: Dict = kwargs.get('sat_query', defaults['sat_query'].copy())
         self.satellite: str = kwargs.get('satellite', defaults['satellite'])
         self.projection_crs: str = kwargs.get('projection_crs', defaults['projection_crs'])
         self.catalog: str = kwargs.get('catalog', defaults['catalog'])
@@ -319,7 +337,7 @@ class PCRasterData():
         # Create GeoDataFrame to test nan values in raster
         gdf_raster_test = self.gdf.to_crs(self.projection_crs).buffer(1)
         gdf_raster_test = gdf_raster_test.to_crs("EPSG:4326")
-        gdf_raster_test = gpd.GeoDataFrame(geometry=gdf_raster_test).dissolve()
+        gdf_raster_test = gpd.GeoDataFrame(geometry=gdf_raster_test)#.dissolve() #Cancel dissolve in order to tests nans in each polygon (since ignoring available_datasets() filter)
 
         # Raster creation - Download raster data by month
         log('Starting raster creation for specified time')
@@ -345,9 +363,11 @@ class PCRasterData():
         pct_missing = round(self.missing_months/len(df_raster_inventory),2)*100
         log(f'Created DataFrame with {self.missing_months} ({pct_missing}%) missing months')
         if pct_missing >= self.missing_months_pct_limit:
+            log("_check_available_data() - Missing more than 50 percent of data points.")
             raise AvailableData('Missing more than 50 percent of data points')
-        df_rol = df_raster_inventory.rolling(self.continuous_missing_months_limit).sum()
+        df_rol = df_raster_inventory['data_id'].rolling(self.continuous_missing_months_limit).sum()
         if len(df_rol.loc[df_rol.data_id==0])>0:
+            log("_check_available_data() - Multiple missing months together.")
             raise AvailableData('Multiple missing months together')
         del df_rol
 
@@ -411,8 +431,8 @@ class PCRasterData():
         """
         df_tmp_dates = pd.DataFrame() # temporary date dataframe
         df_tmp_dates['date'] = pd.date_range(start = self.start_date,
-                                    end = self.end_date,
-                                    freq = self.freq)
+                                             end = self.end_date,
+                                             freq = self.freq)
         # extract month and year from date
         df_tmp_dates['month'] = df_tmp_dates.apply(lambda row: row['date'].month, axis=1)
         df_tmp_dates['year'] = df_tmp_dates.apply(lambda row: row['date'].year, axis=1)
@@ -455,7 +475,7 @@ class PCRasterData():
 
         items = []
 
-        log(f'Gathering items for {self.satellite} with query: {self.query}')
+        log(f'Gathering items for {self.satellite} with query: {self.sat_query}')
 
         for t in self.time_of_interest:
             try:
@@ -463,13 +483,13 @@ class PCRasterData():
                     collections=[self.satellite],
                     intersects=self.area_of_interest,
                     datetime=t,
-                    query = self.query
+                    query = self.sat_query
                 )
 
                 # Check how many items were returned
                 items.extend(list(search.items()))
             except:
-                log('No items found')
+                log(f'No items found on datetime {t}.')
                 continue
 
         self.items = items
@@ -488,14 +508,13 @@ class PCRasterData():
         Sets:
             Sets self.date_list and self.min_cloud_value attributes
         """
-        if self.query:
-            if 'eo:cloud_cover' in list(self.query.keys()):
-                self.min_cloud_value = self.query['eo:cloud_cover']['lt']
+        if self.sat_query:
+            if 'eo:cloud_cover' in list(self.sat_query.keys()):
+                self.min_cloud_value = self.sat_query['eo:cloud_cover']['lt']
 
         # test raster outliers by date
         date_dict = {}
 
-        date_dict = {}
         # iterate over raster tiles by date
         for i in self.items:
             if self.satellite == "sentinel-2-l2a":
@@ -527,20 +546,20 @@ class PCRasterData():
                 if i.datetime.date() in list(date_dict.keys()):
                     # gather cloud percentage, high_proba_clouds_percentage, no_data values and nodata_pixel_percentage
                     # check if properties are within dictionary date keys
-                    if i.properties['landsat:wrs_row']+'_cloud' in list(date_dict[i.datetime.date()].keys()):
+                    if f"{int(i.properties['landsat:wrs_path']):03d}{int(i.properties['landsat:wrs_row']):03d}_cloud" in list(date_dict[i.datetime.date()].keys()):
                         date_dict[i.datetime.date()].update(
-                            {i.properties['landsat:wrs_row']+'_cloud':
+                            {f"{int(i.properties['landsat:wrs_path']):03d}{int(i.properties['landsat:wrs_row']):03d}_cloud":
                             i.properties['landsat:cloud_cover_land']})
 
                     else:
                         date_dict[i.datetime.date()].update(
-                            {i.properties['landsat:wrs_row']+'_cloud':
+                            {f"{int(i.properties['landsat:wrs_path']):03d}{int(i.properties['landsat:wrs_row']):03d}_cloud":
                             i.properties['landsat:cloud_cover_land']})
                 # create new date key and add properties to it
                 else:
                     date_dict[i.datetime.date()] = {}
                     date_dict[i.datetime.date()].update(
-                        {i.properties['landsat:wrs_row']+'_cloud':
+                        {f"{int(i.properties['landsat:wrs_path']):03d}{int(i.properties['landsat:wrs_row']):03d}_cloud":
                         i.properties['landsat:cloud_cover_land']})
 
         # determine third quartile for each tile
@@ -555,12 +574,18 @@ class PCRasterData():
         log(f'Updated average cloud coverage: {df_tile.avg_cloud.mean()}')
 
         # create list of dates within normal distribution and without missing values
-        date_list = df_tile.dropna().index.to_list()
-
+        # date_list = df_tile.dropna().index.to_list() --- Ignored since sometimes not alle tiles are necessary to cover area of interest ---
+        date_list = df_tile.index.to_list()
         log(f'Available dates: {len(date_list)}')
-        log(f'Raster tiles per date: {len(df_tile.columns.to_list())}')
+        
+        # count amount of tiles present in area of interest (aoi) -> all columns except 'avg_cloud'
+        aoi_tiles = len(df_tile.columns.to_list())-1
+        log(f'Raster tiles per date: {aoi_tiles}')
 
+        # Return values 
         self.date_list = date_list
+        self.aoi_tiles = aoi_tiles
+
         return date_list
 
 
@@ -662,6 +687,7 @@ class PCRasterData():
 
         # create empty able_to_download to avoid crash
         df_complete_dates['able_to_download'] = np.nan
+        df_complete_dates['download_method'] = ''
 
         self.missing_months = missing_months
 
@@ -700,9 +726,10 @@ class PCRasterData():
 
         for i in tqdm(range(len(df_raster_inventory)), position=0, leave=True):
 
+            # read dataframe in each iteration in case of code crash
             df_raster = pd.read_csv(df_file_dir, index_col=False)
 
-            # checks if raster was previously downloaded
+            # checks if raster was previously downloaded and if it is available for processing
             if self._check_preexisting_files(i, df_file_dir, df_raster):
                 continue
             # preprocess dates for download
@@ -1048,7 +1075,7 @@ class PCRasterData():
 
         # Create temporary processing directory
         self.processing_raster_dir = self.tmp_dir_name / "temporary_files"
-        self.processing_raster_dir.mkdir(exist_ok=True)
+        self.processing_raster_dir.mkdir(exist_ok=True)  # Create if doesn't exist
 
         return df_file_path
 
@@ -1087,10 +1114,15 @@ class PCRasterData():
         if raster_path.exists():
             df_raster.loc[i, 'data_id'] = 1
             df_raster.to_csv(df_file_path, index=False)
+            log(f' - {self.area_of_analysis_name} - Raster for {self.month_}/{self.year_} already downloaded. Skipping to next month.')
             return True
 
         # Check if month is available
         if df_raster.iloc[i].data_id == 0:
+            if df_raster.iloc[i].download_method != 'could_not_process':
+                df_raster.loc[i,'download_method'] = 'no_links_available'
+                df_raster.to_csv(df_file_path, index=False)
+            log(f' - {self.area_of_analysis_name} - Raster for {self.month_}/{self.year_} not available. Skipping to next month.')
             return True
 
         return False
@@ -1125,6 +1157,7 @@ class PCRasterData():
         dates_ordered = date_array[date_filter]
 
         self.dates_ordered = dates_ordered
+        self.time_of_interest = time_of_interest
 
 
     def save_output_raster(
