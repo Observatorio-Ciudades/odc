@@ -153,6 +153,7 @@ class PCRasterData():
             'projection_crs': "EPSG:6372",
             'catalog': "https://planetarycomputer.microsoft.com/api/stac/v1",
             'compute_unavailable_dates': True,
+            'compute_month_fallback': True,
             'missing_months_pct_limit': 50,
             'continuous_missing_months_limit': 6,
             'buffer_radius': 500,
@@ -166,6 +167,7 @@ class PCRasterData():
         self.projection_crs: str = kwargs.get('projection_crs', defaults['projection_crs'])
         self.catalog: str = kwargs.get('catalog', defaults['catalog'])
         self.compute_unavailable_dates: bool = kwargs.get('compute_unavailable_dates', defaults['compute_unavailable_dates'])
+        self.compute_month_fallback: bool = kwargs.get('compute_month_fallback', defaults['compute_month_fallback'])
         self.missing_months_pct_limit: int = kwargs.get('missing_months_pct_limit', defaults['missing_months_pct_limit'])
         self.continuous_missing_months_limit: int = kwargs.get('continuous_missing_months_limit', defaults['continuous_missing_months_limit'])
         self.buffer_radius: int = kwargs.get('buffer_radius', defaults['buffer_radius'])
@@ -181,6 +183,11 @@ class PCRasterData():
         self.missing_months: Optional[int] = None
         self.band_name_list: Optional[List[str]] = None
         self.min_cloud_value: Optional[float] = None
+        self.aoi_tiles: Optional[int] = None
+        self.gdf_bb: Optional[gpd.GeoDataFrame] = None
+        self.gdf_raster_test: Optional[gpd.GeoDataFrame] = None
+        self.skip_date_list: Optional[List] = None
+        self.iter_count: Optional[int] = None
 
         # === TEMPORARY PROCESSING ATTRIBUTES ===
         self.tmp_dir_name: Optional[Path] = None
@@ -282,6 +289,8 @@ class PCRasterData():
                 AvailableData: If too many months are missing or consecutive gaps exceed limits
         """
 
+        log(f'\n download_raster_from_pc() - {self.area_of_analysis_name} - Starting raster analysis')
+
         # Create area of interest coordinates from hexagons to download raster data
         log('Extracting bounding coordinates from hexagons')
 
@@ -354,7 +363,7 @@ class PCRasterData():
             log("_check_available_data() - Missing more than 50 percent of data points.")
             raise AvailableData('Missing more than 50 percent of data points')
         df_rol = df_raster_inventory['data_id'].rolling(self.continuous_missing_months_limit).sum()
-        if len(df_rol.loc[df_rol.data_id==0])>0:
+        if (df_rol == 0).any():
             log("_check_available_data() - Multiple missing months together.")
             raise AvailableData('Multiple missing months together')
         del df_rol
@@ -561,14 +570,19 @@ class PCRasterData():
         df_tile = df_tile.sort_values(by='avg_cloud')
         log(f'Updated average cloud coverage: {df_tile.avg_cloud.mean()}')
 
-        # create list of dates within normal distribution and without missing values
-        # date_list = df_tile.dropna().index.to_list() --- Ignored since sometimes not alle tiles are necessary to cover area of interest ---
-        date_list = df_tile.index.to_list()
+        # create list of dates within normal distribution
+        if self.compute_month_fallback:
+            # List contains all dates with at least one tile within cloud coverage limits in order to allow month fallback [Heavier processing]
+            date_list = df_tile.index.to_list()
+        else:
+            # List contains only dates with ALL tiles within cloud coverage limits [Faster processing]
+            date_list = df_tile.dropna().index.to_list()        
         log(f'Available dates: {len(date_list)}')
         
         # count amount of tiles present in area of interest (aoi) -> all columns except 'avg_cloud'
         aoi_tiles = len(df_tile.columns.to_list())-1
         log(f'Raster tiles per date: {aoi_tiles}')
+        log(f'Raster tiles: {df_tile.columns.to_list().remove("avg_cloud")}.')
 
         # Return values 
         self.date_list = date_list
@@ -764,25 +778,26 @@ class PCRasterData():
             self.link_dict()
 
             # log amount of available dates for the month compared to all available tiles
-            month_tiles = []
-            for item in self.items:
-                # if item's date is in assets_hrefs keys, check for unique tiles
-                if item.datetime.date() in list(self.assets_hrefs.keys()):
-                    # For sentinel-2-l2a, gather unique mgrs_tile values
-                    if self.satellite == "sentinel-2-l2a":
-                        item_tile = item.properties['s2:mgrs_tile']
-                        if item_tile not in month_tiles:
-                            month_tiles.append(item_tile)
-                    # For landsat-c2-l2, gather unique wrs_path + wrs_row values
-                    elif self.satellite == "landsat-c2-l2":
-                        item_tile = item.properties['landsat:wrs_path'] + item.properties['landsat:wrs_row']
-                        if item_tile not in month_tiles:
-                            month_tiles.append(item_tile)
-            if len(self.aoi_tiles) > len(month_tiles):
-                log(f'NOTE: Insufficient tiles to cover area of interest. Needed: {len(self.aoi_tiles)}, available: {len(month_tiles)}.')
-                log(f'NOTE: Available tiles: {month_tiles}. Missing tiles: {list(set(self.aoi_tiles) - set(month_tiles))}.')
-            else:
-                log(f'NOTE: Month has all available tiles within area of interest.')
+            if self.compute_month_fallback:
+                month_tiles = []
+                for item in self.items:
+                    # if item's date is in assets_hrefs keys, check for unique tiles
+                    if item.datetime.date() in list(self.assets_hrefs.keys()):
+                        # For sentinel-2-l2a, gather unique mgrs_tile values
+                        if self.satellite == "sentinel-2-l2a":
+                            item_tile = item.properties['s2:mgrs_tile']
+                            if item_tile not in month_tiles:
+                                month_tiles.append(item_tile)
+                        # For landsat-c2-l2, gather unique wrs_path + wrs_row values
+                        elif self.satellite == "landsat-c2-l2":
+                            item_tile = item.properties['landsat:wrs_path'] + item.properties['landsat:wrs_row']
+                            if item_tile not in month_tiles:
+                                month_tiles.append(item_tile)
+                if len(self.aoi_tiles) > len(month_tiles):
+                    log(f'NOTE: Insufficient tiles to cover area of interest. Needed: {len(self.aoi_tiles)}, available: {len(month_tiles)}.')
+                    log(f'NOTE: Available tiles: {month_tiles}. Missing tiles: {list(set(self.aoi_tiles) - set(month_tiles))}.')
+                else:
+                    log(f'NOTE: Month has all available tiles within area of interest.')
 
             # --- LINKS ANALIZYS A - ORDERED ACCORDING TO CLOUD COVERAGE [PREFERRED]
             # Create list of links ordered according to cloud coverage
@@ -808,24 +823,26 @@ class PCRasterData():
                 break
 
             # --- LINKS ANALIZYS B - WHOLE MONTH'S AVAILABLE LINKS [BACKUP]
-            # Create list of ALL available links for the month
-            links_dicts_month = {}
-            for current_link_dct in links_dicts_ordered_lst:
-                for band, links in current_link_dct.items():
-                    if band not in links_dicts_month:
-                        links_dicts_month[band] = []  # Initialize list if band not in dictionary
-                    links_dicts_month[band].extend(links) # Append links to the list for the band
-            # Process all available links for the month
-            log(f"{self.month_}/{self.year_} - MONTH ITERATION {self.iter_count}.")
-            checker = self.links_iteration(checker,
-                                           bands_links = links_dicts_month,
-                                           specific_date = (False, None)
-                                           )
-            # If succeded whole month, stop while loop
-            if checker:
-                download_method = 'full_month'
-                break
-            # Else, try next iteration (If not reached MAX_RETRY_ATTEMPTS)
+            if self.compute_month_fallback:
+                # Create list of ALL available links for the month
+                links_dicts_month = {}
+                for current_link_dct in links_dicts_ordered_lst:
+                    for band, links in current_link_dct.items():
+                        if band not in links_dicts_month:
+                            links_dicts_month[band] = []  # Initialize list if band not in dictionary
+                        links_dicts_month[band].extend(links) # Append links to the list for the band
+                # Process all available links for the month
+                log(f"{self.month_}/{self.year_} - MONTH ITERATION {self.iter_count}.")
+                checker = self.links_iteration(checker,
+                                            bands_links = links_dicts_month,
+                                            specific_date = (False, None)
+                                            )
+                # If succeded whole month, stop while loop
+                if checker:
+                    download_method = 'month_fallback'
+                    break
+
+            # Try next iteration (If not reached MAX_RETRY_ATTEMPTS)
             self.iter_count += 1
 
         # Current month's iteration finished, update df_raster according to checker
@@ -928,7 +945,7 @@ class PCRasterData():
 
                 # save raster to processing database
                 index_raster_dir = self.tmp_dir_name / f"{self.area_of_analysis_name}_{self.index_analysis}_{self.month_}_{self.year_}.tif"
-                self.save_output_raster(raster_fill, index_raster_dir, out_meta)
+                self.save_output_raster(raster_file, index_raster_dir, out_meta)
                 log(f'Finished saving {self.index_analysis} raster')
 
                 # log success
@@ -1055,7 +1072,10 @@ class PCRasterData():
             src = rasterio.open(assets)
             src_files_to_mosaic.append(src)
 
-        mosaic, out_trans = merge(src_files_to_mosaic) # mosaic raster
+        # Merge raster tiles
+        log(f"mosaic_raster() - Merging {len(src_files_to_mosaic)} tiles.")
+        mosaic, out_trans = merge(src_files_to_mosaic, method='first')
+        log(f"mosaic_raster() - Merged {len(src_files_to_mosaic)} tiles.")
 
         meta = src.meta
 
@@ -1284,7 +1304,7 @@ class PCRasterData():
             An exception if needed.
         """
 
-        gdf['test'] = gdf.geometry.apply(lambda geom: clean_mask(geom, raster_file)).apply(np.ma.mean)
+        gdf['test'] = gdf.geometry.apply(lambda geom: clean_mask(geom, raster_file, outside_value=np.nan)).apply(np.ma.mean)
 
         log(f'There are {gdf.test.isna().sum()} null data values')
 
@@ -1524,7 +1544,7 @@ class PCRasterData():
 
 
 
-def clean_mask(geom, dataset='', **mask_kw):
+def clean_mask(geom, dataset='', outside_value=0, **mask_kw):
     """
     The mask in this function is used to extract the values from a raster dataset that fall
     within a given geometry of interest.
@@ -1535,6 +1555,8 @@ def clean_mask(geom, dataset='', **mask_kw):
         inputted geometry. If no value is provided, then it defaults to an empty string
         and returns only the masked array of values from within the inputted geometry
         without any metadata.
+        outside_value (float | np.nan): Value assigned when the geometry falls completely outside the raster extent. 
+                                        Defaults to 0. Use np.nan to flag these cases as errors.
         mask_kw (dict): A dictionary of arguments passed to create the mask.
 
     Returns:
@@ -1548,7 +1570,7 @@ def clean_mask(geom, dataset='', **mask_kw):
         masked, _ = rasterio.mask.mask(dataset=dataset, shapes=(geom,),
                                   **mask_kw)
     except:
-        masked = np.array([0])
+        masked = np.array([outside_value])
 
     return masked
 
