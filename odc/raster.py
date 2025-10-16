@@ -13,10 +13,12 @@ import multiprocessing as mp
 
 import rasterio
 import rasterio.mask
+from rasterio.warp import calculate_default_transform, reproject
 from rasterio.enums import Resampling
 from rasterio.merge import merge
 from rasterio.fill import fillnodata
 from rasterio.merge import merge
+import tempfile
 
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
@@ -333,7 +335,7 @@ class PCRasterData():
         # Create GeoDataFrame to test nan values in raster
         gdf_raster_test = self.gdf.to_crs(self.projection_crs).buffer(1)
         gdf_raster_test = gdf_raster_test.to_crs("EPSG:4326")
-        gdf_raster_test = gpd.GeoDataFrame(geometry=gdf_raster_test)#.dissolve() #Cancel dissolve in order to tests nans in each polygon (since ignoring available_datasets() filter)
+        gdf_raster_test = gpd.GeoDataFrame(geometry=gdf_raster_test)
         self.gdf_raster_test = gdf_raster_test
 
         # Raster creation - Download raster data by month
@@ -580,13 +582,14 @@ class PCRasterData():
         log(f'Available dates: {len(date_list)}')
         
         # count amount of tiles present in area of interest (aoi) -> all columns except 'avg_cloud'
-        aoi_tiles = len(df_tile.columns.to_list())-1
-        log(f'Raster tiles per date: {aoi_tiles}')
+        aoi_tiles = df_tile.columns.to_list()[:-1]
+        log(f'Raster tiles per date: {len(aoi_tiles)}.')
         log(f'Raster tiles: {df_tile.columns.to_list().remove("avg_cloud")}.')
 
-        # Return values 
+        # Return values
         self.date_list = date_list
         self.aoi_tiles = aoi_tiles
+        self.df_tile = df_tile
 
         return date_list
 
@@ -799,15 +802,15 @@ class PCRasterData():
                 else:
                     log(f'NOTE: Month has all available tiles within area of interest.')
 
-            # --- LINKS ANALIZYS A - ORDERED ACCORDING TO CLOUD COVERAGE [PREFERRED]
+            # ------------------------------ LINKS ANALIZYS A - ORDERED ACCORDING TO CLOUD COVERAGE [PREFERRED] ------------------------------
             # Create list of links ordered according to cloud coverage
-            links_dicts_ordered_lst = []
+            ordered_bandlink_dicts = []
             for data_position in range(len(self.dates_ordered)):
-                links_dicts_ordered_lst.append(self.assets_hrefs[self.dates_ordered[data_position]])
+                ordered_bandlink_dicts.append(self.assets_hrefs[self.dates_ordered[data_position]])
             # Process ordered dates
             ordered_links_try = 0
-            for bands_links in links_dicts_ordered_lst:
-                log(f"{self.dates_ordered[ordered_links_try]} - ITERATION {self.iter_count} - DATE {ordered_links_try+1}/{len(links_dicts_ordered_lst)}.")
+            for bands_links in ordered_bandlink_dicts:
+                log(f"{self.dates_ordered[ordered_links_try]} - ITERATION {self.iter_count} - DATE {ordered_links_try+1}/{len(ordered_bandlink_dicts)}.")
                 checker = self.links_iteration(checker,
                                                bands_links, 
                                                specific_date=(True, self.dates_ordered[ordered_links_try])
@@ -822,21 +825,80 @@ class PCRasterData():
                 download_method = 'specific_date'
                 break
 
-            # --- LINKS ANALIZYS B - WHOLE MONTH'S AVAILABLE LINKS [BACKUP]
+            # ------------------------------ LINKS ANALIZYS B - WHOLE MONTH'S AVAILABLE LINKS [BACKUP, month_fallback] ------------------------------
             if self.compute_month_fallback:
-                # Create list of ALL available links for the month
-                links_dicts_month = {}
-                for current_link_dct in links_dicts_ordered_lst:
+                # --- GATHER UPDATED LINKS - Since links expire after some time, they are gathered at each iteration
+                # gather items for the date range from planetary computer
+                self.gather_items()
+                    
+                # --- FIND BEST DATES PER TILE - From all month's available items, find the date with lowest cloud coverage for each tile
+                # Re-create df_tile (tiles with cloud pct dataframe) for currently explored dates
+                _ = self.available_datasets()
+                df_tile_current = self.df_tile.copy()
+                # Drop 'avg_cloud' column
+                df_tile_current.drop(columns=['avg_cloud'],inplace=True)
+                # Drop all tile columns with no data (where mean is nan) and list the rest
+                df_tile_current = df_tile_current.drop(columns=df_tile_current.columns[df_tile_current.mean(skipna=True).isna()])
+                tiles_lst = df_tile_current.columns.to_list()
+                # Reset index to place date as a column
+                df_tile_current.reset_index(inplace=True)
+                df_tile_current.rename(columns={'index':'date'},inplace=True)
+                # For each tile, find the date where the clouds percentage is lowest and append date to perform month's analysis
+                best_dates_tiles = {}
+                for tile in tiles_lst:
+                    # Find date where tile has lowest cloud percentage
+                    mincloud_idx = df_tile_current[tile].min()
+                    mincloud_date = df_tile_current.loc[df_tile_current[tile]==mincloud_idx]['date'].unique()[0]
+                    log(f"Tile {tile.replace("_cloud", "")} has lowest cloud coverage on date {mincloud_date}.")
+                    # Save date and tile in dictionary
+                    if mincloud_date in list(best_dates_tiles.keys()):
+                        # Append to existing list
+                        tiles_lst = best_dates_tiles[mincloud_date]
+                        tiles_lst.append(tile)
+                        best_dates_tiles[mincloud_date] = tiles_lst
+                    else:
+                        # Inicialize list
+                        best_dates_tiles[mincloud_date] = [tile]
+                # Update date list (Used inside self.link_dict())
+                self.date_list = dates_month_min_cloud
+                
+                # --- FILTER ITEMS FROM BEST DATES - Creates list of items with best dates and tiles only
+                # gather links from dates that are within dates_month_min_cloud
+                dates_month_min_cloud = list(best_dates_tiles.keys())
+                filtered_items = []
+                for i in self.items:
+                    # If item's date in filtered dates
+                    if i.datetime.date() in dates_month_min_cloud:
+                        # Check current item's tile
+                        if self.satellite == "sentinel-2-l2a":
+                            tile = i.properties['s2:mgrs_tile']
+                        elif self.satellite == "landsat-c2-l2":
+                            tile = i.properties['landsat:wrs_path']+i.properties['landsat:wrs_row']
+                        tile = tile + '_cloud'
+                        # If tile inside dict, append its item to filtered_items
+                        if tile in best_dates_tiles[i.datetime.date()]:
+                            filtered_items.append(i)
+                            log(f"Appended item for tile {tile.replace("_cloud", "")} on date {i.datetime.date()} to month fallback analysis.")
+
+                # --- CREATE LINKS DICTIONARY - Create dictionary of links with best dates and tiles only.
+                # gather links from dates that are within dates_month_min_cloud
+                self.link_dict()
+        
+                # --- PROCESS LINKS - Use links_iteration() function 
+                # Create one month dictionary with bands as keys and list of links as values
+                best_links_by_band = {}
+                for data_position in range(len(dates_month_min_cloud)):
+                    current_link_dct = self.assets_hrefs[dates_month_min_cloud[data_position]]
                     for band, links in current_link_dct.items():
-                        if band not in links_dicts_month:
-                            links_dicts_month[band] = []  # Initialize list if band not in dictionary
-                        links_dicts_month[band].extend(links) # Append links to the list for the band
+                        if band not in best_links_by_band:
+                            best_links_by_band[band] = []  # Initialize list if band not in dictionary
+                        best_links_by_band[band].extend(links) # Append links to the list for the band
                 # Process all available links for the month
                 log(f"{self.month_}/{self.year_} - MONTH ITERATION {self.iter_count}.")
                 checker = self.links_iteration(checker,
-                                            bands_links = links_dicts_month,
-                                            specific_date = (False, None)
-                                            )
+                                               bands_links = best_links_by_band,
+                                               specific_date = (False, None)
+                                               )
                 # If succeded whole month, stop while loop
                 if checker:
                     download_method = 'month_fallback'
@@ -919,8 +981,9 @@ class PCRasterData():
             # Interpolation process
             log(f'Starting interpolation')
             raster_idx[raster_idx == self.BAND_NODATA_VALUE ] = np.nan # change zero values to nan
-            # only for temperature
-            raster_idx[raster_idx == self.TEMPERATURE_NODATA_VALUE ] = np.nan # change zero values to nan
+            raster_idx[raster_idx == self.TEMPERATURE_NODATA_VALUE ] = np.nan # change zero values to nan (only for temperature)
+            raster_idx[np.isinf(raster_idx)] = np.nan # change inf values to nan
+            raster_idx[np.isnan(raster_idx)] = np.nan # change nan values to nan (to avoid errors)
             raster_idx = raster_idx.astype('float32') # change data type to float32 to avoid fillnodata error
 
             log(f'Interpolating {np.isnan(raster_idx).sum()} nan values')
@@ -1011,7 +1074,8 @@ class PCRasterData():
                             "dtype": 'float32',
                             "height": raster_array[b][0].shape[1],
                             "width": raster_array[b][0].shape[2],
-                            "transform": raster_array[b][1]})
+                            "transform": raster_array[b][1],
+                            "crs": self.projection_crs})
 
             log(f'Starting save: {b}')
 
@@ -1032,7 +1096,8 @@ class PCRasterData():
                                     "dtype": 'float32',
                                     "height": raster_array[b][0].shape[1],
                                     "width": raster_array[b][0].shape[2],
-                                    "transform": raster_array[b][1]})
+                                    "transform": raster_array[b][1],
+                                    "crs": self.projection_crs})
                 src.close()
 
             output_raster_path = self.processing_raster_dir / f"{b}.tiff"
@@ -1068,9 +1133,40 @@ class PCRasterData():
 
         src_files_to_mosaic = []
 
+        # Raster reprojection
+        tmp_files = []
         for assets in raster_asset_list:
-            src = rasterio.open(assets)
-            src_files_to_mosaic.append(src)
+            with rasterio.open(assets) as src:
+                # Reproject if necessary
+                if src.crs != self.projection_crs:
+                    log(f"mosaic_raster() - Reprojecting tile.")
+                    # Crear transform and new metadata
+                    transform, width, height = calculate_default_transform(src.crs, self.projection_crs, src.width, src.height, *src.bounds)
+                    kwargs = src.meta.copy()
+                    kwargs.update({
+                        'crs': self.projection_crs,
+                        'transform': transform,
+                        'width': width,
+                        'height': height
+                    })
+
+                    # Save temporary reprojected file
+                    tmp_file = tempfile.NamedTemporaryFile(suffix=".tif", delete=False).name
+                    with rasterio.open(tmp_file, 'w', **kwargs) as dst:
+                        for i in range(1, src.count + 1):
+                            reproject(
+                                source=rasterio.band(src, i),
+                                destination=rasterio.band(dst, i),
+                                src_transform=src.transform,
+                                src_crs=src.crs,
+                                dst_transform=transform,
+                                dst_crs=self.projection_crs,
+                                resampling=Resampling.nearest
+                            )
+                    tmp_files.append(tmp_file)
+                    src_files_to_mosaic.append(rasterio.open(tmp_file))
+                else:
+                    src_files_to_mosaic.append(rasterio.open(assets))
 
         # Merge raster tiles
         log(f"mosaic_raster() - Merging {len(src_files_to_mosaic)} tiles.")
@@ -1087,7 +1183,8 @@ class PCRasterData():
                              "dtype": 'float32',
                              "height": mosaic.shape[1],
                              "width": mosaic.shape[2],
-                             "transform": out_trans})
+                             "transform": out_trans,
+                             "crs": self.projection_crs})
             # write raster
             output_raster_path = self.processing_raster_dir / "mosaic_upscale.tif"
             self.save_output_raster(mosaic, output_raster_path, out_meta)
@@ -1115,7 +1212,8 @@ class PCRasterData():
                                 "dtype": 'float32',
                                 "height": mosaic.shape[1],
                                 "width": mosaic.shape[2],
-                                "transform": out_trans})
+                                "transform": out_trans,
+                                "crs": self.projection_crs})
 
             ds.close()
         src.close()
