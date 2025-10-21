@@ -1,7 +1,7 @@
 ################################################################################
 # Module: Analysis
 # Set of spatial data treatment and analysis functions
-# updated: 10/08/2025
+# updated: 21/10/2025
 ################################################################################
 
 
@@ -13,9 +13,9 @@ import shapely
 from scipy.spatial import Voronoi
 
 import math
-from scipy import optimize
+from scipy import optimize, special
 
-from typing import Union, List, Dict, Optional, Callable
+from typing import Union, List, Dict, Optional, Callable, Tuple
 
 from .utils import *
 from .data import *
@@ -203,9 +203,7 @@ def fill_missing_h3_data(
     data_with_values: gpd.GeoDataFrame,
     id_column: str,
     value_columns: Union[str, list],
-    neighbor_function: Callable,
     max_iterations: int = 100,
-    convergence_threshold: float = 0.001,
     aggregation_method: str = 'mean',
     fill_isolated: bool = True,
     isolated_fill_value: Optional[Union[float, dict]] = None
@@ -392,8 +390,9 @@ def fill_missing_h3_data(
 
 def sigmoidal_function(
     x: float,
-    di: float,
-    d0: float
+    k: float,
+    x0: float,
+    invert = True,
 ) -> float:
     """
     Calculate sigmoidal transformation value for equilibrium index.
@@ -407,12 +406,15 @@ def sigmoidal_function(
     x : float
         Input value to transform using sigmoid function.
         Can be any real number.
-    di : float
+    k : float
         Slope parameter controlling steepness of sigmoid curve.
         Higher values create steeper transitions.
-    d0 : float
+    x0 : float
         Threshold parameter defining sigmoid inflection point.
         Value where sigmoid function equals 0.5.
+    invert : bool, default True
+        If True, returns 1- sigmoidal_function, creating a decreasing
+        curve
 
     Returns
     -------
@@ -422,14 +424,17 @@ def sigmoidal_function(
         and approaching 1 for large negative inputs.
     """
 
-    idx_eq = 1 / (1 + math.exp(x * (di - d0)))
-    return idx_eq
+    idx_eq = 1 / (1 + math.exp(k * (x - x0)))
+    idx_eq = -k * (x - x0)
+    res = special.expit(idx_eq)
+    res = 1-0 - res if invert else res
+    return res
 
 
 def _sigmoid_objective_function(
     x: float,
-    di: float,
-    d0: float,
+    k: float,
+    x0: float,
     target_value: float
 ) -> float:
     """
@@ -442,9 +447,9 @@ def _sigmoid_objective_function(
     ----------
     x : float
         Input parameter to optimize (decay constant).
-    di : float
+    k : float
         Slope parameter for sigmoid function.
-    d0 : float
+    x0 : float
         Threshold parameter for sigmoid function.
     target_value : float
         Target value that sigmoid function should achieve.
@@ -454,15 +459,16 @@ def _sigmoid_objective_function(
     float
         Absolute difference between sigmoid output and target value.
     """
-    sigmoid_value = 1 / (1 + math.exp(x * (di - d0)))
-    return abs(sigmoid_value - target_value)
+    sigmoid_value = sigmoidal_function(x, k, x0)
+    return abs(sigmoid_value - target_value) ** 2
 
 
 def _find_decay_constant(
-    di: float,
-    d0: float,
+    k: float,
+    x0: float,
     target_value: float,
-    initial_guess: float = 0.01
+    initial_guess: float = 0.01,
+    bounds : Tuple[float, float] = (-20.0, 20.0)
 ) -> float:
     """
     Find optimal decay constant for sigmoid function to achieve target value.
@@ -472,14 +478,16 @@ def _find_decay_constant(
 
     Parameters
     ----------
-    di : float
+    k : float
         Slope parameter for sigmoid function.
-    d0 : float
+    x0 : float
         Threshold parameter for sigmoid function.
     target_value : float
         Desired output value from sigmoid function (between 0 and 1).
     initial_guess : float, default 0.01
         Starting point for optimization algorithm.
+    bounds : tuple(float, float), default (-20.0, 20.0)
+        Search interval for the solution
 
     Returns
     -------
@@ -493,8 +501,8 @@ def _find_decay_constant(
     """
     try:
         result = optimize.minimize_scalar(
-            fun=lambda x: _sigmoid_objective_function(x, di, d0, target_value),
-            bounds=(-10, 10),
+            fun=lambda x: _sigmoid_objective_function(x, k, x0, target_value),
+            bounds=bounds,
             method='bounded'
         )
 
@@ -509,7 +517,10 @@ def _find_decay_constant(
 
 def sigmoidal_function_constant(
     positive_limit_value: float,
-    mid_limit_value: float
+    mid_limit_value: float,
+    target_low: float = 0.25,
+    target_high: float = 0.75,
+    bounds: Tuple[float,float] = (-20.0, 20.0)
 ) -> float:
     """
     Calculate optimal sigmoid decay constant for quarter-point constraints.
@@ -527,6 +538,12 @@ def sigmoidal_function_constant(
     mid_limit_value : float
         Midpoint value for sigmoid function, typically the inflection point.
         Must be less than positive_limit_value.
+    target_low : float, default 0.target_25
+        Desired sigmoid output at the lower quarter
+    target_high : float, default 0.75
+        Desired sigmoid output for upper quarter
+    bounds : tuple(float,float), default (-20.0,20.0)
+        Bounds passed for internal optimizer value search
 
     Returns
     -------
@@ -561,16 +578,18 @@ def sigmoidal_function_constant(
     try:
         # Find decay constant for 0.75 quarter point
         decay_75 = _find_decay_constant(
-            di=quarter_75_limit,
-            d0=mid_limit_value,
-            target_value=target_75
+            k=quarter_75_limit,
+            x0=mid_limit_value,
+            target_value=target_75,
+            bounds=bounds
         )
 
         # Find decay constant for 0.25 quarter point
         decay_25 = _find_decay_constant(
-            di=quarter_25_limit,
-            d0=mid_limit_value,
-            target_value=target_25
+            k=quarter_25_limit,
+            x0=mid_limit_value,
+            target_value=target_25,
+            bounds=bounds
         )
 
         # Return average of both decay constants
@@ -628,7 +647,8 @@ def interpolate_to_gdf(
     gdf_int = gdf.copy()
     xi = np.array(gdf_int.geometry.x)
     yi = np.array(gdf_int.geometry.y)
-    gdf_int['interpolated_value'] = idw_at_point(x, y, z, xi, yi, power, search_radius)
+    gdf_int['interpolated_value'] = interpolate_at_points(
+        x, y, z, xi, yi, power, search_radius)
     return gdf_int
 
 
@@ -676,46 +696,35 @@ def idw_at_point(
         IDW interpolated value at target point coordinates.
         Returns -1 if no observation points within search radius.
     """
-    # filter analysis by search radius
-    if search_radius:
-        id_x = (x0 <= xi + search_radius) & (x0 >= xi - search_radius)
-        id_y = (y0 <= yi + search_radius) & (y0 >= yi - search_radius)
-        id_xy = id_x + id_y
-        z0 = z0[np.squeeze(id_xy)].copy()
-        obs = np.vstack((x0[id_xy], y0[id_xy])).T
-    else:
-    	# format observed points data
-        obs = np.vstack((x0, y0)).T
-
-    # format interpolation point data
-    interp = np.vstack((xi, yi)).T
-
-    # calculate euclidean distance in x and y between obs and interp
-    d0 = np.subtract.outer(obs[:,0], interp[:,0])
-    d1 = np.subtract.outer(obs[:,1], interp[:,1])
-
-    # calculate hypotenuse for distances
-    dist = np.hypot(d0, d1)
+    # stack observation coordinates
+    obs = np.column_stack((x0,y0))
+    
+    # calculate distances to target point
+    dist = np.hypot(obs[:,0] - xi, obs[:,1] - yi)
 
     # filter distances by search radius
     if search_radius:
         idx = dist <= search_radius
+        if not np.any(idx): # if there aren't any values within search radius
+            return -1.0
+
         dist = dist[idx]
         z0 = z0[np.squeeze(idx)]
 
     # calculate weights
-    weights = 1.0 * (dist + 1e-12)**power
+    weights = 1.0 / (dist + 1e-12)**power
     # weights sum to 1 by row
     weights /= weights.sum(axis=0)
 
     # check if no observation points are within limit distance
     if weights.shape[0] == 0:
-        ones = np.ones((z0.shape[1],), dtype=float)
-        ones[ones == 1] = -1 # return -1 vector
-        return ones
+        if z0.ndim == 1:
+            return np.full(1, -1.0)
+        else:
+            return np.full(z0.shape[1], -1.0)
     # calculate dot product of weight matrix and z value matrix
     int_value = np.dot(weights.T, z0)
-    return int_value
+    return float(int_value)
 
 def interpolate_at_points(
     x0: np.ndarray,
@@ -763,6 +772,12 @@ def interpolate_at_points(
         Array of IDW interpolated values at target point coordinates.
         Has same length as xi and yi input arrays.
     """
+    x0 = np.asarray(x0).ravel()
+    y0 = np.asarray(y0).ravel()
+    z0 = np.asarray(z0).ravel()
+    xi = np.asarray(xi).ravel()
+    yi = np.asarray(yi).ravel()
+
     # format observed points data
     obs = np.vstack((x0, y0)).T
 
@@ -770,19 +785,14 @@ def interpolate_at_points(
     interp = np.vstack((xi, yi)).T
 
     # calculate linear distance in x and y
-    d0 = np.subtract.outer(obs[:,0], interp[:,0])
-    d1 = np.subtract.outer(obs[:,1], interp[:,1])
+    diff = obs[:,np.newaxis,:] - interp[np.newaxis,:,:]
+    dist = np.hypot(diff[...,0], diff[...,1])
 
-    # calculate linear distance from observations to interpolation points
-    dist = np.hypot(d0, d1)
 
-    # filter data by search radius
+    # filter data by search radius:where
     if search_radius:
         idx = dist<=search_radius
-        idx_num = idx * 1
-        idx_num = idx_num.astype('float32')
-        idx_num[idx_num == 0] = np.nan
-        dist = dist*idx_num
+        dist = np.where(idx, dist, np.nan)
 
     # calculate weights
     weights = 1.0/(dist+1e-12)**power

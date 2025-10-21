@@ -182,7 +182,6 @@ class TestAnalysisFunctions:
             data_with_values=data_with_values,
             id_column=id_col,
             value_columns='value',
-            neighbor_function=mock_neighbor_function,
             max_iterations=10
         )
         
@@ -202,15 +201,11 @@ class TestAnalysisFunctions:
         missing_data = sample_hex_data.iloc[5:].copy()
         missing_data = missing_data.drop(columns=['value', 'value2'])
         
-        def mock_neighbor_function(hex_id):
-            return list(h3.grid_ring(hex_id, 1))
-        
         result = analysis.fill_missing_h3_data(
             missing_data=missing_data,
             data_with_values=data_with_values,
             id_column=id_col,
             value_columns=['value', 'value2'],
-            neighbor_function=mock_neighbor_function,
             max_iterations=10
         )
         
@@ -220,7 +215,7 @@ class TestAnalysisFunctions:
     # Test sigmoidal functions
     def test_sigmoidal_function_basic(self):
         """Test basic sigmoidal transformation."""
-        result = analysis.sigmoidal_function(x=2.0, di=0.5, d0=10.0)
+        result = analysis.sigmoidal_function(x=0.5, k=2.0, x0=10.0)
         
         assert isinstance(result, float)
         assert 0 <= result <= 1
@@ -228,7 +223,7 @@ class TestAnalysisFunctions:
     def test_sigmoidal_function_boundary_values(self):
         """Test sigmoidal function at boundary values."""
         # At d0, should be close to 0.5
-        result_at_d0 = analysis.sigmoidal_function(x=0.5, di=10.0, d0=10.0)
+        result_at_d0 = analysis.sigmoidal_function(x=10.0, k=0.5, x0=10.0)
         assert 0.4 <= result_at_d0 <= 0.6
 
     def test_sigmoidal_function_constant_invalid_inputs(self):
@@ -249,7 +244,7 @@ class TestAnalysisFunctions:
         
         # Create target points
         target_gdf = gpd.GeoDataFrame({
-            'geometry': [Point(0.5, 0.5), Point(0.25, 0.25)]
+            'geometry': [Point(0.5, 0.5)]
         }, crs='EPSG:4326')
         
         result = analysis.interpolate_to_gdf(target_gdf, x, y, z)
@@ -375,7 +370,7 @@ class TestAnalysisFunctions:
     def test_sigmoid_objective_function(self):
         """Test sigmoid objective function helper."""
         result = analysis._sigmoid_objective_function(
-            x=0.5, di=5.0, d0=10.0, target_value=0.75
+            x=5.0, k=0.5, x0=10.0, target_value=0.75
         )
         
         assert isinstance(result, float)
@@ -384,7 +379,7 @@ class TestAnalysisFunctions:
     def test_find_decay_constant(self):
         """Test decay constant finder helper."""
         result = analysis._find_decay_constant(
-            di=5.0, d0=10.0, target_value=0.75
+            k=5.0, x0=10.0, target_value=0.75
         )
         
         assert isinstance(result, float)
