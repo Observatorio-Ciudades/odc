@@ -74,7 +74,11 @@ def convert_column_types(
                 elif data_type == "datetime":
                     df_copy[col] = pd.to_datetime(df_copy[col])
                 else:  # integer or float
-                    df_copy[col] = pd.to_numeric(df_copy[col], downcast=data_type)
+                    df_copy[col] = pd.to_numeric(df[col])
+                    if data_type.lower() == 'integer':
+                        df_copy[col] = df_copy[col].astype('int32')
+                    else:
+                        df_copy[col] =  df_copy[col].astype('float64')
 
                 utils.log(f"Converted column '{col}' to {data_type}")
 
