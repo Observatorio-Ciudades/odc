@@ -289,6 +289,10 @@ def create_hexagonal_grid(
         geometry = geometry.to_crs("EPSG:4326")
         utils.log("Converted geometry to EPSG:4326 for H3 compatibility")
 
+    # Ensure resolution is an integer between 0 and 15
+    if not isinstance(resolution, int) or not 0 <= resolution <= 15:
+        raise ValueError(f"resolution must be an integer between 0 and 15, got {resolution}")
+
     # Handle MultiPolygon by exploding to individual polygons
     exploded_geoms = geometry[geometry_column].explode(ignore_index=True)
     exploded_geoms = exploded_geoms.reset_index(drop=True)
