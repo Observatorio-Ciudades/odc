@@ -756,7 +756,7 @@ def calculate_time_to_pois(
     edges: GeoDataFrame,
     pois: GeoDataFrame,
     poi_name: str,
-    prox_measure: str,
+    prox_measure: str='length',
     walking_speed: float = 4.0,
     count_pois: Tuple[bool, int] = (False, 0),
     projected_crs: str = "EPSG:6372",
@@ -784,7 +784,7 @@ def calculate_time_to_pois(
     poi_name : str
         Identifier for POI type, used in output column naming.
         Example: 'pharmacy', 'school', 'hospital'.
-    prox_measure : str
+    prox_measure : str, default 'length'
         Distance calculation method: 'length' or 'time_min'.
         'length' uses walking_speed for time conversion.
     walking_speed : float, default 4.0
