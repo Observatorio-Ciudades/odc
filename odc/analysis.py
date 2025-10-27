@@ -387,7 +387,6 @@ def fill_missing_h3_data(
     return result
 
 
-
 def sigmoidal_function(
     x: float,
     k: float,
@@ -726,6 +725,7 @@ def idw_at_point(
     int_value = np.dot(weights.T, z0)
     return float(int_value)
 
+
 def interpolate_at_points(
     x0: np.ndarray,
     y0: np.ndarray,
@@ -802,6 +802,7 @@ def interpolate_at_points(
     int_value = np.where(np.isnan(weights.T),0,weights.T).dot(np.where(np.isnan(z0),0,z0))
 
     return int_value
+
 
 def weighted_average(
     df: pd.DataFrame,

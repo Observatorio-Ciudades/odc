@@ -452,7 +452,6 @@ def calculate_distance_nearest_poi(
     return nodes
 
 
-
 def walk_speed(edges_elevation: GeoDataFrame) -> GeoDataFrame:
     """
     Calculate walking speeds using Tobler's Hiking Function based on slope.
@@ -941,6 +940,9 @@ def _validate_pois_time_inputs(G, nodes, edges, pois, poi_name, prox_measure, wa
     if 'osmid' not in nodes.columns:
         nodes = nodes.reset_index()
 
+    if 'u' not in edges.columns or 'v' not in edges.columns:
+        edges = edges.reset_index()
+
     required_columns = {'nodes': ['osmid'], 'edges': ['u', 'v'], 'pois': ['geometry']}
     for df_name, df in [('nodes', nodes), ('edges', edges), ('pois', pois)]:
         missing_cols = [col for col in required_columns[df_name] if col not in df.columns]
@@ -1039,12 +1041,12 @@ def _calculate_poi_distances_batch(nearest, nodes, edges, poi_name, count_pois, 
     if time_results:
         # Find minimum time across all batches
         all_times = pd.concat(time_results, axis=1)
-        nodes_time[f'time_{poi_name}'] = all_times.min(axis=1)
+        nodes_time[f'time_{poi_name}'] = all_times.min(axis=1).values
 
         # Sum counts across batches
         if count_pois[0]:
             all_counts = pd.concat(count_results, axis=1)
-            nodes_time[f'{poi_name}_{count_pois[1]}min'] = all_counts.sum(axis=1)
+            nodes_time[f'{poi_name}_{count_pois[1]}min'] = all_counts.sum(axis=1).values
 
     log(f"Completed proximity analysis for {poi_name}")
     return nodes_time

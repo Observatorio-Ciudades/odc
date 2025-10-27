@@ -191,7 +191,7 @@ def download_osm_network(
                        f"E={east:.5f}, W={west:.5f}")
 
             graph = ox.graph_from_bbox(
-                west, south, east, north,
+                bbox=(west, south, east, north),
                 network_type=network_type,
                 simplify=True,
                 retain_all=False,
@@ -308,17 +308,15 @@ def create_hexagonal_grid(
         try:
             # Convert to GeoJSON format for H3
             geom_dict = geom.__geo_interface__
-            geom_dict = h3.geo_to_h3shape(geom_dict)
             utils.log(geom_dict)
 
             # Get hexagon IDs covering this polygon
-            hex_ids = h3.polygon_to_cells(geom_dict, resolution)
-
+            hex_ids = h3.polyfill(geom_dict, resolution, geo_json_conformant=True)
             utils.log(f"Generated {len(hex_ids)} hexagons for polygon {idx}")
 
             # Convert hex IDs to polygons
             for hex_id in hex_ids:
-                hex_boundary = h3.cell_to_boundary(hex_id)
+                hex_boundary = h3.h3_to_geo_boundary(hex_id)
                 hex_boundary = [(lon,lat) for lat, lon in hex_boundary]
                 hex_polygon = shapely.Polygon(hex_boundary)
                 all_hexagons.append({
