@@ -39,19 +39,6 @@ from typing import List, Dict, Optional, Union, Tuple, Any
 import os
 from pathlib import Path
 
-# UPDATES (Work in progress)
-# General - Changed 'query' to 'sat_query' to avoid confusion with other query parameters - UPDATED 07/10/2025
-# _check_available_data() - Changed df_rol to roll 'data_id' col only - UPDATED 07/10/2025
-# gather_items() - Added log - UPDATED 07/10/2025
-# available_datasets() - Fixed tile counting for satellite landsat-c2-l2 and saved aoi_tiles in self. - UPDATED 07/10/2025
-# create_raster_by_month() updated up to raster_download_date_preprocessing() - UPDATED 07/10/2025
-
-# CHECKED
-# create_area_of_interest() - CHECKED 07/10/2025
-# create_time_of_interest() - CHECKED 07/10/2025
-# link_dict() - CHECKED 07/10/2025
-# df_date_links() - CHECKED 07/10/2025
-
 
 # Flags to ignore division by zero and invalid floating point operations
 np.seterr(divide='ignore', invalid='ignore')
@@ -584,7 +571,7 @@ class PCRasterData():
         # count amount of tiles present in area of interest (aoi) -> all columns except 'avg_cloud'
         aoi_tiles = df_tile.columns.to_list()[:-1]
         log(f'Raster tiles per date: {len(aoi_tiles)}.')
-        log(f'Raster tiles: {df_tile.columns.to_list().remove("avg_cloud")}.')
+        log(f'Raster tiles: {aoi_tiles}.')
 
         # Return values
         self.date_list = date_list
@@ -616,16 +603,37 @@ class PCRasterData():
             # if date already in dictionary, append link to list
             if i.datetime.date() in list(assets_hrefs.keys()):
                 for b in self.band_name_list:
-                    assets_hrefs[i.datetime.date()][b].append(pc.sign(find_asset_by_band_common_name(i,b).href))
+                    assets_hrefs[i.datetime.date()][b].append(pc.sign(self._find_asset_by_band_common_name(i, b).href))
             # if date not in dictionary, create new dictionary entry
             else:
                 assets_hrefs[i.datetime.date()] = {}
                 for b in self.band_name_list:
                     assets_hrefs[i.datetime.date()].update({b:[]})
-                    assets_hrefs[i.datetime.date()][b].append(pc.sign(find_asset_by_band_common_name(i,b).href))
+                    assets_hrefs[i.datetime.date()][b].append(pc.sign(self._find_asset_by_band_common_name(i, b).href))
 
         self.assets_hrefs = assets_hrefs
         return assets_hrefs
+
+
+    def _find_asset_by_band_common_name(self, item, common_name):
+        """
+        Search for a band's common name.
+
+        Function that searches for a specific band within a SpatioTemporal Asset Catalog (STAC) and returns the corresponding asset.
+        
+        Raises:
+            KeyError: If common_name is not found
+
+        Returns:
+            asset (object): Asset with the common name
+        """
+
+        for asset in item.assets.values():
+            asset_bands = eo.ext(asset).bands
+            if asset_bands and asset_bands[0].common_name == common_name:
+                return asset
+        raise KeyError(f"{common_name} band not found")
+
 
     def df_date_links(self) -> pd.DataFrame:
         """
@@ -680,7 +688,7 @@ class PCRasterData():
         df_complete_dates.sort_values(by=['year','month'], inplace=True)
 
         # create binary column for available (1) or missing data (0)
-        band_name_list = list(self.band_name_dict.keys())[:-1]
+        band_name_list = list(self.band_name_dict.keys())
         idx = df_complete_dates[band_name_list[0]].isna()
         df_complete_dates['data_id'] = 0
         df_complete_dates.loc[~idx,'data_id'] = 1
@@ -772,10 +780,17 @@ class PCRasterData():
         self.iter_count = 1
         # create skip date list used to analyze null values in raster
         self.skip_date_list = []
+        # create copy of date list if using compute_month_fallback, since it gets overwritten
+        if self.compute_month_fallback:
+            month_date_list = self.date_list.copy()
 
         while self.iter_count <= self.MAX_RETRY_ATTEMPTS:
             # gather links for the date range from planetary computer
             self.gather_items()
+
+            # recover month date list if using compute_month_fallback, since it gets overwritten
+            if self.iter_count>1 and self.compute_month_fallback:
+                self.date_list = month_date_list
 
             # gather links from dates that are within date_list
             self.link_dict()
@@ -802,7 +817,7 @@ class PCRasterData():
                 else:
                     log(f'NOTE: Month has all available tiles within area of interest.')
 
-            # ------------------------------ LINKS ANALIZYS A - ORDERED ACCORDING TO CLOUD COVERAGE [PREFERRED] ------------------------------
+            # ------------------------------ LINKS ANALISYS A - ORDERED ACCORDING TO CLOUD COVERAGE [PREFERRED] ------------------------------
             # Create list of links ordered according to cloud coverage
             ordered_bandlink_dicts = []
             for data_position in range(len(self.dates_ordered)):
@@ -825,7 +840,7 @@ class PCRasterData():
                 download_method = 'specific_date'
                 break
 
-            # ------------------------------ LINKS ANALIZYS B - WHOLE MONTH'S AVAILABLE LINKS [BACKUP, month_fallback] ------------------------------
+            # ------------------------------ LINKS ANALISYS B - WHOLE MONTH'S AVAILABLE LINKS [BACKUP, month_fallback] ------------------------------
             if self.compute_month_fallback:
                 # --- GATHER UPDATED LINKS - Since links expire after some time, they are gathered at each iteration
                 # gather items for the date range from planetary computer
@@ -859,28 +874,28 @@ class PCRasterData():
                     else:
                         # Inicialize list
                         best_dates_tiles[mincloud_date] = [tile]
-                # Update date list (Used inside self.link_dict())
-                self.date_list = dates_month_min_cloud
                 
                 # --- FILTER ITEMS FROM BEST DATES - Creates list of items with best dates and tiles only
                 # gather links from dates that are within dates_month_min_cloud
                 dates_month_min_cloud = list(best_dates_tiles.keys())
                 filtered_items = []
-                for i in self.items:
+                for item in self.items:
                     # If item's date in filtered dates
-                    if i.datetime.date() in dates_month_min_cloud:
+                    if item.datetime.date() in dates_month_min_cloud:
                         # Check current item's tile
                         if self.satellite == "sentinel-2-l2a":
-                            tile = i.properties['s2:mgrs_tile']
+                            tile = item.properties['s2:mgrs_tile']
                         elif self.satellite == "landsat-c2-l2":
-                            tile = i.properties['landsat:wrs_path']+i.properties['landsat:wrs_row']
+                            tile = item.properties['landsat:wrs_path']+item.properties['landsat:wrs_row']
                         tile = tile + '_cloud'
                         # If tile inside dict, append its item to filtered_items
-                        if tile in best_dates_tiles[i.datetime.date()]:
-                            filtered_items.append(i)
-                            log(f"Appended item for tile {tile.replace('_cloud', '')} on date {i.datetime.date()} to month fallback analysis.")
+                        if tile in best_dates_tiles[item.datetime.date()]:
+                            filtered_items.append(item)
+                            log(f"Appended item for tile {tile.replace('_cloud', '')} on date {item.datetime.date()} to month fallback analysis.")
 
                 # --- CREATE LINKS DICTIONARY - Create dictionary of links with best dates and tiles only.
+                # Update date list (Used inside self.link_dict())
+                self.date_list = dates_month_min_cloud
                 # gather links from dates that are within dates_month_min_cloud
                 self.link_dict()
         
@@ -963,12 +978,11 @@ class PCRasterData():
             log(f'Mosaic date {date_attempt.day}'+
                         f'/{date_attempt.month}'+
                         f'/{date_attempt.year} - iteration:{self.iter_count}')
-
         try:
             # Mosaic process
             rasters_arrays = func_timeout(self.download_time_limit,
                                           self.mosaic_process,
-                                          args=(bands_links
+                                          args=(bands_links,
                                                 )
                                         )
             out_meta = rasters_arrays[list(rasters_arrays.keys())[0]][2]
