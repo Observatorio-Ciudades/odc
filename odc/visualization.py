@@ -717,7 +717,10 @@ def plot_proximity(data_gdf: gpd.GeoDataFrame,
         if 'time' in column: #Time to all amenities
             # Extract statistical selected (Can be mean_time, median_time or max_time) from column name
             statistical = column.split('_')[0]
-            plot_title = f"Proximity analysis ({statistical} time) to all amenities" #Whithout period at the end to add location name if provided
+            if statistical == 'time': #e.g. 'time_schools', a specific amenity
+                plot_title = f"Proximity analysis (time) to all amenities" #Whithout period at the end to add location name if provided
+            else:
+                plot_title = f"Proximity analysis ({statistical} time) to all amenities" #Whithout period at the end to add location name if provided
         else: # Time to specific amenity
             # Extract amenity name from column name
             amenity_name = column.split('_')[1]
