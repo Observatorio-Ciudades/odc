@@ -1012,7 +1012,7 @@ class PCRasterData():
             self.save_output_raster(raster_fill, output_raster_path, out_meta)
 
             log('Starting null test')
-            raster_file = rasterio.open(f"{self.processing_raster_dir}{self.index_analysis}.tif")
+            raster_file = rasterio.open(f"{self.processing_raster_dir}/{self.index_analysis}.tif")
             gdf_raster_test = self.gdf_raster_test.to_crs(raster_file.crs)
 
             try:
@@ -1022,7 +1022,7 @@ class PCRasterData():
 
                 # save raster to processing database
                 index_raster_dir = self.tmp_dir_name / f"{self.area_of_analysis_name}_{self.index_analysis}_{self.month_}_{self.year_}.tif"
-                self.save_output_raster(raster_file, index_raster_dir, out_meta)
+                self.save_output_raster(raster_fill, index_raster_dir, out_meta)
                 log(f'Finished saving {self.index_analysis} raster')
 
                 # log success
@@ -1072,7 +1072,7 @@ class PCRasterData():
 
         raster_array = {}
 
-        band_names_list = list(self.band_name_dict.keys())[:-1]
+        band_names_list = list(self.band_name_dict.keys())
 
         for b in band_names_list:
 
@@ -1204,7 +1204,7 @@ class PCRasterData():
             self.save_output_raster(mosaic, output_raster_path, out_meta)
 
             # read and upscale
-            with rasterio.open(self.processing_raster_dir+"mosaic_upscale.tif", "r") as ds:
+            with rasterio.open(self.processing_raster_dir+"/mosaic_upscale.tif", "r") as ds:
 
                 upscale_factor = 1/2
 
@@ -1549,7 +1549,7 @@ class PCRasterData():
                         cont += 1
                         slope = slope + slope_increment
 
-        df_file_dir = self.tmp_dir_name + self.index_analysis + f"_{self.area_of_analysis_name}_dataframe.csv"
+        df_file_dir = self.tmp_dir_name / f"{self.index_analysis}_{self.area_of_analysis_name}_dataframe.csv"
         df_raster_inventory.to_csv(df_file_dir,index=False)
 
         return df_raster_inventory
