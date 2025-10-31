@@ -1285,16 +1285,17 @@ class PCRasterData():
             Creates directory structure and saves initial inventory file
             Sets self.tmp_dir_name and self.processing_raster_dir attributes
         """
+        
+        # Create area-specific directory
+        self.tmp_dir_name = self.tmp_dir / self.area_of_analysis_name
+        self.tmp_dir_name.mkdir(exist_ok=True)  # Create if doesn't exist
+
         # Create DataFrame file path
-        df_file_path = self.tmp_dir / f"{self.index_analysis}_{self.area_of_analysis_name}_dataframe.csv"
+        df_file_path = self.tmp_dir_name / f"{self.index_analysis}_{self.area_of_analysis_name}_dataframe.csv"
 
         # Save DataFrame if it doesn't exist
         if not df_file_path.exists():
             df_raster_inventory.to_csv(df_file_path, index=False)
-
-        # Create area-specific directory
-        self.tmp_dir_name = self.tmp_dir / self.area_of_analysis_name
-        self.tmp_dir_name.mkdir(exist_ok=True)  # Create if doesn't exist
 
         # Create temporary processing directory
         self.processing_raster_dir = self.tmp_dir_name / "temporary_files"
