@@ -1746,7 +1746,7 @@ class RasterToPolygon():
         self.index_analysis = index_analysis
         self.area_of_analysis_name = area_of_analysis_name
         self.tmp_dir = tmp_dir
-        self.tmp_dir_name = self.tmp_dir / self.area_of_analysis_name
+        self.tmp_dir_name = f"{self.tmp_dir}/{self.area_of_analysis_name}"
 
         # === DEFAULT VALUES FOR OPTIONAL PARAMETERS ===
         defaults = {
@@ -1806,10 +1806,14 @@ class RasterToPolygon():
         gdf_raster_df = gdf_raster.drop(columns=['geometry'])
 
         # add city information
-        gdf_raster_df['area_of_analysis_name'] = self.area_of_analysis_name
         gdf_raster_analysis['area_of_analysis_name'] = self.area_of_analysis_name
+        gdf_raster_df['area_of_analysis_name'] = self.area_of_analysis_name
 
         log(f'df nan values: {gdf_raster_df[self.index_analysis].isna().sum()}')
+
+        # turn all columns to lowercase
+        gdf_raster_analysis.columns = map(str.lower, gdf_raster_analysis.columns)
+        gdf_raster_df.columns = map(str.lower, gdf_raster_df.columns)
 
         return gdf_raster_analysis, gdf_raster_df
 
@@ -1948,7 +1952,7 @@ class RasterToPolygon():
 
         gdf_raster = self.gdf.copy()
         # read raster file
-        raster_file_dir = self.tmp_dir_name / self.index_analysis + f"_{month}_{year}.tif"
+        raster_file_dir = f"{self.tmp_dir_name}/{self.area_of_analysis_name}_{self.index_analysis}_{month}_{year}.tif"
 
         with rasterio.open(raster_file_dir) as raster_file:
 

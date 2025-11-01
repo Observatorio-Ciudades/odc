@@ -551,8 +551,8 @@ def plot_proximity(data_gdf: gpd.GeoDataFrame,
                    plot_boundary = (False, gpd.GeoDataFrame),
                    adjust_to = ('',[0.05,0.05]),
                    save_png = (False, '../output/figures/plot.png'),
-                   png_transparency = False,
-                   png_dpi = 300,
+                   output_transparency = False,
+                   output_dpi = 300,
                    save_pdf = (False, '../output/figures/plot.pdf')
                    ) -> None:
     """
@@ -593,9 +593,9 @@ def plot_proximity(data_gdf: gpd.GeoDataFrame,
     save_png: tupple, default (False, '../output/figures/plot.png').
         Tupple containing boolean on position [0]. If true, a string can be specified on position [1] 
         indicating the directory and file name where the png is saved.
-    png_transparency: bool, default False.
-        If True, saves the png with transparency.
-    png_dpi: int, default 300.
+    output_transparency: bool, default False.
+        If True, saves the output with transparency.
+    output_dpi: int, default 300.
         Sets the resolution to be used to save the png.
     save_pdf: tupple, default (False, '../output/figures/plot.pdf').
         Tupple containing boolean on position [0]. If true, a string can be specified on position [1] 
@@ -641,10 +641,10 @@ def plot_proximity(data_gdf: gpd.GeoDataFrame,
         raise TypeError("adjust_to must be a tuple with two elements: a string (either 'boundary', 'edges' or '') and a list with two numeric values.")
     if not isinstance(save_png, tuple) or len(save_png) != 2 or not isinstance(save_png[1], str):
         raise TypeError("save_png must be a tuple with two elements: a boolean and a string (file path).")
-    if not isinstance(png_transparency, bool):
-        raise TypeError("png_transparency must be a boolean value (True or False).")
-    if not isinstance(png_dpi, int):
-        raise TypeError("png_dpi must be an integer value.")
+    if not isinstance(output_transparency, bool):
+        raise TypeError("output_transparency must be a boolean value (True or False).")
+    if not isinstance(output_dpi, int):
+        raise TypeError("output_dpi must be an integer value.")
     if not isinstance(save_pdf, tuple) or len(save_pdf) != 2 or not isinstance(save_pdf[1], str):
         raise TypeError("save_pdf must be a tuple with two elements: a boolean and a string (file path).")
     
@@ -818,10 +818,13 @@ def plot_proximity(data_gdf: gpd.GeoDataFrame,
     # Save or show plot
     if save_png[0]:
         log(f"plot_proximity() - Saving plot as PNG in {save_png[1]}.")
-        plt.savefig(save_png[1],dpi=png_dpi,transparent=png_transparency)
+        plt.savefig(save_png[1],dpi=output_dpi,transparent=output_transparency)
     if save_pdf[0]:
         log(f"plot_proximity() - Saving plot as PDF in {save_pdf[1]}.")
-        plt.savefig(save_pdf[1])
+        pdf_name = save_pdf[1]
+        if pdf_name != '.pdf':
+            pdf_name = pdf_name+".pdf"
+        plt.savefig(pdf_name,format='pdf',dpi=output_dpi,transparent=output_transparency)
 
 
 def plot_ndvi(data_gdf: gpd.GeoDataFrame,
@@ -832,8 +835,8 @@ def plot_ndvi(data_gdf: gpd.GeoDataFrame,
               plot_boundary = (False, gpd.GeoDataFrame),
               adjust_to = ('',[0.05,0.05]),
               save_png = (False, '../output/figures/plot.png'),
-              png_transparency = False,
-              png_dpi = 300,
+              output_transparency = False,
+              output_dpi = 300,
               save_pdf = (False, '../output/figures/plot.pdf')
               ) -> None:
     """
@@ -873,9 +876,9 @@ def plot_ndvi(data_gdf: gpd.GeoDataFrame,
     save_png: tupple, default (False, '../output/figures/plot.png').
         Tupple containing boolean on position [0]. If true, a string can be specified on position [1] 
         indicating the directory and file name where the png is saved.
-    png_transparency: bool, default False.
-        If True, saves the png with transparency.
-    png_dpi: int, default 300.
+    output_transparency: bool, default False.
+        If True, saves the output with transparency.
+    output_dpi: int, default 300.
         Sets the resolution to be used to save the png.
     save_pdf: tupple, default (False, '../output/figures/plot.pdf').
         Tupple containing boolean on position [0]. If true, a string can be specified on position [1] 
@@ -921,10 +924,10 @@ def plot_ndvi(data_gdf: gpd.GeoDataFrame,
         raise TypeError("adjust_to must be a tuple with two elements: a string (either 'boundary', 'edges' or '') and a list with two numeric values.")
     if not isinstance(save_png, tuple) or len(save_png) != 2 or not isinstance(save_png[1], str):
         raise TypeError("save_png must be a tuple with two elements: a boolean and a string (file path).")
-    if not isinstance(png_transparency, bool):
-        raise TypeError("png_transparency must be a boolean value (True or False).")
-    if not isinstance(png_dpi, int):
-        raise TypeError("png_dpi must be an integer value.")
+    if not isinstance(output_transparency, bool):
+        raise TypeError("output_transparency must be a boolean value (True or False).")
+    if not isinstance(output_dpi, int):
+        raise TypeError("output_dpi must be an integer value.")
     if not isinstance(save_pdf, tuple) or len(save_pdf) != 2 or not isinstance(save_pdf[1], str):
         raise TypeError("save_pdf must be a tuple with two elements: a boolean and a string (file path).")
     
@@ -1078,10 +1081,13 @@ def plot_ndvi(data_gdf: gpd.GeoDataFrame,
     # Save or show plot
     if save_png[0]:
         log(f"plot_ndvi() - Saving plot as PNG in {save_png[1]}.")
-        plt.savefig(save_png[1],dpi=png_dpi,transparent=png_transparency)
+        plt.savefig(save_png[1],dpi=output_dpi,transparent=output_transparency)
     if save_pdf[0]:
         log(f"plot_ndvi() - Saving plot as PDF in {save_pdf[1]}.")
-        plt.savefig(save_pdf[1])
+        pdf_name = save_pdf[1]
+        if pdf_name != '.pdf':
+            pdf_name = pdf_name+".pdf"
+        plt.savefig(pdf_name,format='pdf',dpi=output_dpi,transparent=output_transparency)
 
 
 def plot_temperature(data_gdf: gpd.GeoDataFrame,
@@ -1092,8 +1098,8 @@ def plot_temperature(data_gdf: gpd.GeoDataFrame,
                      plot_boundary = (False, gpd.GeoDataFrame),
                      adjust_to = ('',[0.05,0.05]),
                      save_png = (False, '../output/figures/plot.png'),
-                     png_transparency = False,
-                     png_dpi = 300,
+                     output_transparency = False,
+                     output_dpi = 300,
                      save_pdf = (False, '../output/figures/plot.pdf')
                      ) -> None:
     """
@@ -1132,9 +1138,9 @@ def plot_temperature(data_gdf: gpd.GeoDataFrame,
     save_png: tupple, default (False, '../output/figures/plot.png').
         Tupple containing boolean on position [0]. If true, a string can be specified on position [1] 
         indicating the directory and file name where the png is saved.
-    png_transparency: bool, default False.
-        If True, saves the png with transparency.
-    png_dpi: int, default 300.
+    output_transparency: bool, default False.
+        If True, saves the output with transparency.
+    output_dpi: int, default 300.
         Sets the resolution to be used to save the png.
     save_pdf: tupple, default (False, '../output/figures/plot.pdf').
         Tupple containing boolean on position [0]. If true, a string can be specified on position [1] 
@@ -1180,10 +1186,10 @@ def plot_temperature(data_gdf: gpd.GeoDataFrame,
         raise TypeError("adjust_to must be a tuple with two elements: a string (either 'boundary', 'edges' or '') and a list with two numeric values.")
     if not isinstance(save_png, tuple) or len(save_png) != 2 or not isinstance(save_png[1], str):
         raise TypeError("save_png must be a tuple with two elements: a boolean and a string (file path).")
-    if not isinstance(png_transparency, bool):
-        raise TypeError("png_transparency must be a boolean value (True or False).")
-    if not isinstance(png_dpi, int):
-        raise TypeError("png_dpi must be an integer value.")
+    if not isinstance(output_transparency, bool):
+        raise TypeError("output_transparency must be a boolean value (True or False).")
+    if not isinstance(output_dpi, int):
+        raise TypeError("output_dpi must be an integer value.")
     if not isinstance(save_pdf, tuple) or len(save_pdf) != 2 or not isinstance(save_pdf[1], str):
         raise TypeError("save_pdf must be a tuple with two elements: a boolean and a string (file path).")
 
@@ -1338,11 +1344,13 @@ def plot_temperature(data_gdf: gpd.GeoDataFrame,
     # Save or show plot
     if save_png[0]:
         log(f"plot_temperature() - Saving plot as PNG in {save_png[1]}.")
-        plt.savefig(save_png[1],dpi=png_dpi,transparent=png_transparency)
+        plt.savefig(save_png[1],dpi=output_dpi,transparent=output_transparency)
     if save_pdf[0]:
         log(f"plot_temperature() - Saving plot as PDF in {save_pdf[1]}.")
-
-        plt.savefig(save_pdf[1])
+        pdf_name = save_pdf[1]
+        if pdf_name != '.pdf':
+            pdf_name = pdf_name+".pdf"
+        plt.savefig(pdf_name,format='pdf',dpi=output_dpi,transparent=output_transparency)
 
 
 def plot_temperature_anomaly(data_gdf: gpd.GeoDataFrame,
