@@ -283,20 +283,20 @@ class PCRasterData():
 
         # Create area of interest coordinates from hexagons to download raster data
         log('Extracting bounding coordinates from hexagons')
-        area_of_interest = self.create_area_of_interest()
+        self.create_area_of_interest()
 
         # Create time of interest (Creates a list for all to-be-analysed-months with structure [start_day/end_day,(...)])
         log('Defining time of interest')
-        time_of_interest = self.create_time_of_interest()
+        self.create_time_of_interest()
 
         # Gather items for time and area of interest (Creates of list of available image items)
         log('Gathering items for time and area of interest')
-        items = self.gather_items()
+        self.gather_items()
         log(f'Fetched {len(self.items)} items')
 
         # Check available dates and tiles for area of interest
         log('Checking available tiles for area of interest')
-        date_list, df_tile = self.available_datasets()
+        self.available_datasets()
 
         # Store complete amount of tiles and complete date list
         aoi_tiles = self.df_tile.columns.to_list()[:-1] # all df_tile columns except 'avg_cloud'
@@ -310,7 +310,7 @@ class PCRasterData():
 
         # Create dictionary from links (assets_hrefs is a dict. of dates and links with structure {available_date:{band_n:[link]}})
         self.band_name_list = list(self.band_name_dict.keys())
-        assets_hrefs = self.link_dict()
+        self.link_dict()
         log('Created dictionary from items')
 
         # Analyze available data according to raster properties (Creates df_raster_inventory for the first time)
@@ -407,7 +407,6 @@ class PCRasterData():
 
         self.area_of_interest = area_of_interest
 
-        return area_of_interest
 
     def create_time_of_interest(self) -> List[str]:
         """
@@ -448,7 +447,7 @@ class PCRasterData():
 
         # Returns array with time of interest
         self.time_of_interest = time_of_interest
-        return time_of_interest
+
 
     def gather_items(self) -> List:
         """
@@ -486,7 +485,7 @@ class PCRasterData():
                 continue
 
         self.items = items
-        return items
+
 
     def available_datasets(self) -> List:
         """
@@ -576,8 +575,6 @@ class PCRasterData():
         self.date_list = date_list
         self.df_tile = df_tile
 
-        return date_list, df_tile
-
 
     def link_dict(self) -> Dict:
         """
@@ -610,7 +607,6 @@ class PCRasterData():
                     assets_hrefs[i.datetime.date()][b].append(pc.sign(self._find_asset_by_band_common_name(i, b).href))
 
         self.assets_hrefs = assets_hrefs
-        return assets_hrefs
 
 
     def _find_asset_by_band_common_name(self, item, common_name):
@@ -842,7 +838,7 @@ class PCRasterData():
                     
                 # --- FIND BEST DATES PER TILE - From all month's available items, find the date with lowest cloud coverage for each tile
                 # Re-create df_tile (tiles with cloud pct dataframe) for currently explored dates
-                _, __ = self.available_datasets()
+                self.available_datasets()
                 df_tile_current = self.df_tile.copy()
                 # Drop 'avg_cloud' column
                 df_tile_current.drop(columns=['avg_cloud'],inplace=True)
