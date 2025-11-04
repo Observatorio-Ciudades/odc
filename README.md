@@ -3,9 +3,8 @@
 
 # OdC
 
-The OdC (Observatorio de Ciudades) is an urban science laboratory focused on innovation in the collection, processing, analysis and visualization of spatial data related to urban dynamics.
-This Python package provides a low-code toolkit for spatial analysis.
-It integrates well-known geospatial libraries and adds first-party functions developed for faster, reproducible workflows.
+The Cities Observatory ([_Observatorio de Ciudades_](https://observatoriodeciudades.mx/), OdC) is an urban science laboratory focused on innovation in the collection, processing, analysis and visualization of spatial data related to urban dynamics.
+This Python package provides a low-code toolkit for spatial analysis. It integrates well-known geospatial libraries and adds first-party functions developed for faster, reproducible workflows.
 
 ------------
 
