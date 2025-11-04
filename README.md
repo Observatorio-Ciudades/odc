@@ -20,9 +20,9 @@ pip install odc
 
 Three demo files were prepared to display the basic usage of some package functions and classes. These are the developed demos:
 
-[Demo 1 - proximity analysis](demo/Demo 1 - proximity analysis.ipynb)
-[Demo 2 - NDVI raster analysis](demo/Demo 2 - NDVI raster analysis.ipynb)
-[Demo 3 - Surface Temperature analysis](demo/Demo 3 - Surface Temperature analysis.ipynb)
+[Demo 01 - Proximity analysis](demo/Demo_01-Proximity_analysis.ipynb)
+[Demo 02 - NDVI raster analysis](demo/Demo-02-NDVI_raster_analysis.ipynb)
+[Demo 03 - Land Surface Temperature analysis](demo/Demo_03-Land_Surface_Temperature_analysis.ipynb)
 
 The demos can be found on the [demo](demo/) folder, while the used input and outputs can be found on the [data/demo_files](data/demo_files/) folder.
 
