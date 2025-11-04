@@ -176,7 +176,10 @@ def download_osm_network(
     if network_type not in valid_network_types:
         raise ValueError(f"Invalid network_type '{network_type}'. "
                         f"Must be one of {valid_network_types}")
-
+    
+    # Convert to EPSG:4326 for graph download
+    if area_of_interest.crs != "EPSG:4326":
+        area_of_interest = area_of_interest.to_crs("EPSG:4326")
 
     try:
         if method == 'from_bbox':
@@ -188,7 +191,7 @@ def download_osm_network(
                        f"E={east:.5f}, W={west:.5f}")
 
             graph = ox.graph_from_bbox(
-                bbox = (west, south, east, north),
+                bbox=(west, south, east, north),
                 network_type=network_type,
                 simplify=True,
                 retain_all=False,
@@ -310,7 +313,6 @@ def create_hexagonal_grid(
 
             # Get hexagon IDs covering this polygon
             hex_ids = h3.polygon_to_cells(geom_dict, resolution)
-
             utils.log(f"Generated {len(hex_ids)} hexagons for polygon {idx}")
 
             # Convert hex IDs to polygons

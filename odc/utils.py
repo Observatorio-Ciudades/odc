@@ -115,6 +115,7 @@ def _get_logger(level=None, name=None, filename=None):
 
     return logger
 
+
 def haversine(coord1, coord2):
 	"""
 	Calculate distance between two coordinates in meters with the Haversine formula

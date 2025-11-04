@@ -39,19 +39,6 @@ from typing import List, Dict, Optional, Union, Tuple, Any
 import os
 from pathlib import Path
 
-# UPDATES (Work in progress)
-# General - Changed 'query' to 'sat_query' to avoid confusion with other query parameters - UPDATED 07/10/2025
-# _check_available_data() - Changed df_rol to roll 'data_id' col only - UPDATED 07/10/2025
-# gather_items() - Added log - UPDATED 07/10/2025
-# available_datasets() - Fixed tile counting for satellite landsat-c2-l2 and saved aoi_tiles in self. - UPDATED 07/10/2025
-# create_raster_by_month() updated up to raster_download_date_preprocessing() - UPDATED 07/10/2025
-
-# CHECKED
-# create_area_of_interest() - CHECKED 07/10/2025
-# create_time_of_interest() - CHECKED 07/10/2025
-# link_dict() - CHECKED 07/10/2025
-# df_date_links() - CHECKED 07/10/2025
-
 
 # Flags to ignore division by zero and invalid floating point operations
 np.seterr(divide='ignore', invalid='ignore')
@@ -181,11 +168,12 @@ class PCRasterData():
         self.time_of_interest: Optional[List[str]] = None
         self.items: Optional[List] = None
         self.date_list: Optional[List] = None
+        self.complete_date_list: Optional[List] = None
         self.assets_hrefs: Optional[Dict] = None
         self.missing_months: Optional[int] = None
         self.band_name_list: Optional[List[str]] = None
         self.min_cloud_value: Optional[float] = None
-        self.aoi_tiles: Optional[int] = None
+        self.aoi_tiles: Optional[List] = None
         self.gdf_bb: Optional[gpd.GeoDataFrame] = None
         self.gdf_raster_test: Optional[gpd.GeoDataFrame] = None
         self.skip_date_list: Optional[List] = None
@@ -295,28 +283,34 @@ class PCRasterData():
 
         # Create area of interest coordinates from hexagons to download raster data
         log('Extracting bounding coordinates from hexagons')
-
-        area_of_interest = self.create_area_of_interest()
+        self.create_area_of_interest()
 
         # Create time of interest (Creates a list for all to-be-analysed-months with structure [start_day/end_day,(...)])
         log('Defining time of interest')
-
-        time_of_interest = self.create_time_of_interest()
+        self.create_time_of_interest()
 
         # Gather items for time and area of interest (Creates of list of available image items)
         log('Gathering items for time and area of interest')
-
-        items = self.gather_items()
+        self.gather_items()
         log(f'Fetched {len(self.items)} items')
 
+        # Check available dates and tiles for area of interest
         log('Checking available tiles for area of interest')
+        self.available_datasets()
 
-        date_list = self.available_datasets()
+        # Store complete amount of tiles and complete date list
+        aoi_tiles = self.df_tile.columns.to_list()[:-1] # all df_tile columns except 'avg_cloud'
+        aoi_tiles = [tile.replace('_cloud','') for tile in aoi_tiles] # remove suffix '_cloud' from tile names
+        self.aoi_tiles = aoi_tiles # set aoi_tiles attribute
+        log(f'Raster tiles per date: {len(self.aoi_tiles)}.')
+        log(f'Raster tiles: {self.aoi_tiles}.')
+        # Save complete date_list (self.date_list gets overwritten later if compute_month_fallback is used)
+        if self.compute_month_fallback:
+            self.complete_date_list = self.date_list
 
         # Create dictionary from links (assets_hrefs is a dict. of dates and links with structure {available_date:{band_n:[link]}})
         self.band_name_list = list(self.band_name_dict.keys())
-
-        link_dict = self.link_dict()
+        self.link_dict()
         log('Created dictionary from items')
 
         # Analyze available data according to raster properties (Creates df_raster_inventory for the first time)
@@ -413,7 +407,6 @@ class PCRasterData():
 
         self.area_of_interest = area_of_interest
 
-        return area_of_interest
 
     def create_time_of_interest(self) -> List[str]:
         """
@@ -454,7 +447,7 @@ class PCRasterData():
 
         # Returns array with time of interest
         self.time_of_interest = time_of_interest
-        return time_of_interest
+
 
     def gather_items(self) -> List:
         """
@@ -474,7 +467,7 @@ class PCRasterData():
 
         items = []
 
-        log(f'Gathering items for {self.satellite} with query: {self.sat_query}')
+        log(f'Gathering items for date range {self.time_of_interest} on satellite {self.satellite} with query: {self.sat_query}')
 
         for t in self.time_of_interest:
             try:
@@ -492,7 +485,7 @@ class PCRasterData():
                 continue
 
         self.items = items
-        return items
+
 
     def available_datasets(self) -> List:
         """
@@ -526,12 +519,10 @@ class PCRasterData():
                         date_dict[i.datetime.date()].update(
                             {i.properties['s2:mgrs_tile']+'_cloud':
                             i.properties['s2:high_proba_clouds_percentage']})
-
                     else:
                         date_dict[i.datetime.date()].update(
                             {i.properties['s2:mgrs_tile']+'_cloud':
                             i.properties['s2:high_proba_clouds_percentage']})
-
                 # create new date key and add properties to it
                 else:
                     date_dict[i.datetime.date()] = {}
@@ -549,7 +540,6 @@ class PCRasterData():
                         date_dict[i.datetime.date()].update(
                             {f"{int(i.properties['landsat:wrs_path']):03d}{int(i.properties['landsat:wrs_row']):03d}_cloud":
                             i.properties['landsat:cloud_cover_land']})
-
                     else:
                         date_dict[i.datetime.date()].update(
                             {f"{int(i.properties['landsat:wrs_path']):03d}{int(i.properties['landsat:wrs_row']):03d}_cloud":
@@ -580,18 +570,10 @@ class PCRasterData():
             # List contains only dates with ALL tiles within cloud coverage limits [Faster processing]
             date_list = df_tile.dropna().index.to_list()        
         log(f'Available dates: {len(date_list)}')
-        
-        # count amount of tiles present in area of interest (aoi) -> all columns except 'avg_cloud'
-        aoi_tiles = df_tile.columns.to_list()[:-1]
-        log(f'Raster tiles per date: {len(aoi_tiles)}.')
-        log(f'Raster tiles: {df_tile.columns.to_list().remove("avg_cloud")}.')
 
         # Return values
         self.date_list = date_list
-        self.aoi_tiles = aoi_tiles
         self.df_tile = df_tile
-
-        return date_list
 
 
     def link_dict(self) -> Dict:
@@ -616,16 +598,36 @@ class PCRasterData():
             # if date already in dictionary, append link to list
             if i.datetime.date() in list(assets_hrefs.keys()):
                 for b in self.band_name_list:
-                    assets_hrefs[i.datetime.date()][b].append(pc.sign(find_asset_by_band_common_name(i,b).href))
+                    assets_hrefs[i.datetime.date()][b].append(pc.sign(self._find_asset_by_band_common_name(i, b).href))
             # if date not in dictionary, create new dictionary entry
             else:
                 assets_hrefs[i.datetime.date()] = {}
                 for b in self.band_name_list:
                     assets_hrefs[i.datetime.date()].update({b:[]})
-                    assets_hrefs[i.datetime.date()][b].append(pc.sign(find_asset_by_band_common_name(i,b).href))
+                    assets_hrefs[i.datetime.date()][b].append(pc.sign(self._find_asset_by_band_common_name(i, b).href))
 
         self.assets_hrefs = assets_hrefs
-        return assets_hrefs
+
+
+    def _find_asset_by_band_common_name(self, item, common_name):
+        """
+        Search for a band's common name.
+
+        Function that searches for a specific band within a SpatioTemporal Asset Catalog (STAC) and returns the corresponding asset.
+        
+        Raises:
+            KeyError: If common_name is not found
+
+        Returns:
+            asset (object): Asset with the common name
+        """
+
+        for asset in item.assets.values():
+            asset_bands = eo.ext(asset).bands
+            if asset_bands and asset_bands[0].common_name == common_name:
+                return asset
+        raise KeyError(f"{common_name} band not found")
+
 
     def df_date_links(self) -> pd.DataFrame:
         """
@@ -680,7 +682,7 @@ class PCRasterData():
         df_complete_dates.sort_values(by=['year','month'], inplace=True)
 
         # create binary column for available (1) or missing data (0)
-        band_name_list = list(self.band_name_dict.keys())[:-1]
+        band_name_list = list(self.band_name_dict.keys())
         idx = df_complete_dates[band_name_list[0]].isna()
         df_complete_dates['data_id'] = 0
         df_complete_dates.loc[~idx,'data_id'] = 1
@@ -800,9 +802,9 @@ class PCRasterData():
                     log(f'NOTE: Insufficient tiles to cover area of interest. Needed: {len(self.aoi_tiles)}, available: {len(month_tiles)}.')
                     log(f'NOTE: Available tiles: {month_tiles}. Missing tiles: {list(set(self.aoi_tiles) - set(month_tiles))}.')
                 else:
-                    log(f'NOTE: Month has all available tiles within area of interest.')
+                    log(f'NOTE: Month has all available tiles within area of interest: {month_tiles}.')
 
-            # ------------------------------ LINKS ANALIZYS A - ORDERED ACCORDING TO CLOUD COVERAGE [PREFERRED] ------------------------------
+            # ------------------------------ LINKS ANALISYS A - ORDERED ACCORDING TO CLOUD COVERAGE [PREFERRED] ------------------------------
             # Create list of links ordered according to cloud coverage
             ordered_bandlink_dicts = []
             for data_position in range(len(self.dates_ordered)):
@@ -825,15 +827,18 @@ class PCRasterData():
                 download_method = 'specific_date'
                 break
 
-            # ------------------------------ LINKS ANALIZYS B - WHOLE MONTH'S AVAILABLE LINKS [BACKUP, month_fallback] ------------------------------
+            # ------------------------------ LINKS ANALISYS B - WHOLE MONTH'S AVAILABLE LINKS [BACKUP, month_fallback] ------------------------------
             if self.compute_month_fallback:
+
+                log(f"{self.year_}-{self.month_:02d} - MONTH ITERATION {self.iter_count}.")
+
                 # --- GATHER UPDATED LINKS - Since links expire after some time, they are gathered at each iteration
                 # gather items for the date range from planetary computer
                 self.gather_items()
                     
                 # --- FIND BEST DATES PER TILE - From all month's available items, find the date with lowest cloud coverage for each tile
                 # Re-create df_tile (tiles with cloud pct dataframe) for currently explored dates
-                _ = self.available_datasets()
+                self.available_datasets()
                 df_tile_current = self.df_tile.copy()
                 # Drop 'avg_cloud' column
                 df_tile_current.drop(columns=['avg_cloud'],inplace=True)
@@ -859,30 +864,32 @@ class PCRasterData():
                     else:
                         # Inicialize list
                         best_dates_tiles[mincloud_date] = [tile]
-                # Update date list (Used inside self.link_dict())
-                self.date_list = dates_month_min_cloud
                 
                 # --- FILTER ITEMS FROM BEST DATES - Creates list of items with best dates and tiles only
                 # gather links from dates that are within dates_month_min_cloud
                 dates_month_min_cloud = list(best_dates_tiles.keys())
                 filtered_items = []
-                for i in self.items:
+                for item in self.items:
                     # If item's date in filtered dates
-                    if i.datetime.date() in dates_month_min_cloud:
+                    if item.datetime.date() in dates_month_min_cloud:
                         # Check current item's tile
                         if self.satellite == "sentinel-2-l2a":
-                            tile = i.properties['s2:mgrs_tile']
+                            tile = item.properties['s2:mgrs_tile']
                         elif self.satellite == "landsat-c2-l2":
-                            tile = i.properties['landsat:wrs_path']+i.properties['landsat:wrs_row']
+                            tile = item.properties['landsat:wrs_path']+item.properties['landsat:wrs_row']
                         tile = tile + '_cloud'
                         # If tile inside dict, append its item to filtered_items
-                        if tile in best_dates_tiles[i.datetime.date()]:
-                            filtered_items.append(i)
-                            log(f"Appended item for tile {tile.replace('_cloud', '')} on date {i.datetime.date()} to month fallback analysis.")
+                        if tile in best_dates_tiles[item.datetime.date()]:
+                            filtered_items.append(item)
+                            log(f"Appended item for tile {tile.replace('_cloud', '')} on date {item.datetime.date()} to month fallback analysis.")
 
                 # --- CREATE LINKS DICTIONARY - Create dictionary of links with best dates and tiles only.
+                # change date_list to dates_month_min_cloud to create assets_hrefs with best dates only
+                self.date_list = dates_month_min_cloud
                 # gather links from dates that are within dates_month_min_cloud
                 self.link_dict()
+                # recover complete date list if using compute_month_fallback, since the full date list is used in other parts of the code
+                self.date_list = self.complete_date_list
         
                 # --- PROCESS LINKS - Use links_iteration() function 
                 # Create one month dictionary with bands as keys and list of links as values
@@ -894,7 +901,6 @@ class PCRasterData():
                             best_links_by_band[band] = []  # Initialize list if band not in dictionary
                         best_links_by_band[band].extend(links) # Append links to the list for the band
                 # Process all available links for the month
-                log(f"{self.month_}/{self.year_} - MONTH ITERATION {self.iter_count}.")
                 checker = self.links_iteration(checker,
                                                bands_links = best_links_by_band,
                                                specific_date = (False, None)
@@ -963,12 +969,11 @@ class PCRasterData():
             log(f'Mosaic date {date_attempt.day}'+
                         f'/{date_attempt.month}'+
                         f'/{date_attempt.year} - iteration:{self.iter_count}')
-
         try:
             # Mosaic process
             rasters_arrays = func_timeout(self.download_time_limit,
                                           self.mosaic_process,
-                                          args=(bands_links
+                                          args=(bands_links,
                                                 )
                                         )
             out_meta = rasters_arrays[list(rasters_arrays.keys())[0]][2]
@@ -998,7 +1003,7 @@ class PCRasterData():
             self.save_output_raster(raster_fill, output_raster_path, out_meta)
 
             log('Starting null test')
-            raster_file = rasterio.open(f"{self.processing_raster_dir}{self.index_analysis}.tif")
+            raster_file = rasterio.open(f"{self.processing_raster_dir}/{self.index_analysis}.tif")
             gdf_raster_test = self.gdf_raster_test.to_crs(raster_file.crs)
 
             try:
@@ -1008,7 +1013,7 @@ class PCRasterData():
 
                 # save raster to processing database
                 index_raster_dir = self.tmp_dir_name / f"{self.area_of_analysis_name}_{self.index_analysis}_{self.month_}_{self.year_}.tif"
-                self.save_output_raster(raster_file, index_raster_dir, out_meta)
+                self.save_output_raster(raster_fill, index_raster_dir, out_meta)
                 log(f'Finished saving {self.index_analysis} raster')
 
                 # log success
@@ -1058,7 +1063,7 @@ class PCRasterData():
 
         raster_array = {}
 
-        band_names_list = list(self.band_name_dict.keys())[:-1]
+        band_names_list = list(self.band_name_dict.keys())
 
         for b in band_names_list:
 
@@ -1190,7 +1195,7 @@ class PCRasterData():
             self.save_output_raster(mosaic, output_raster_path, out_meta)
 
             # read and upscale
-            with rasterio.open(self.processing_raster_dir+"mosaic_upscale.tif", "r") as ds:
+            with rasterio.open(self.processing_raster_dir+"/mosaic_upscale.tif", "r") as ds:
 
                 upscale_factor = 1/2
 
@@ -1271,16 +1276,17 @@ class PCRasterData():
             Creates directory structure and saves initial inventory file
             Sets self.tmp_dir_name and self.processing_raster_dir attributes
         """
+        
+        # Create area-specific directory
+        self.tmp_dir_name = self.tmp_dir / self.area_of_analysis_name
+        self.tmp_dir_name.mkdir(exist_ok=True)  # Create if doesn't exist
+
         # Create DataFrame file path
-        df_file_path = self.tmp_dir / f"{self.index_analysis}_{self.area_of_analysis_name}_dataframe.csv"
+        df_file_path = self.tmp_dir_name / f"{self.index_analysis}_{self.area_of_analysis_name}_dataframe.csv"
 
         # Save DataFrame if it doesn't exist
         if not df_file_path.exists():
             df_raster_inventory.to_csv(df_file_path, index=False)
-
-        # Create area-specific directory
-        self.tmp_dir_name = self.tmp_dir / self.area_of_analysis_name
-        self.tmp_dir_name.mkdir(exist_ok=True)  # Create if doesn't exist
 
         # Create temporary processing directory
         self.processing_raster_dir = self.tmp_dir_name / "temporary_files"
@@ -1535,7 +1541,7 @@ class PCRasterData():
                         cont += 1
                         slope = slope + slope_increment
 
-        df_file_dir = self.tmp_dir_name + self.index_analysis + f"_{self.area_of_analysis_name}_dataframe.csv"
+        df_file_dir = self.tmp_dir_name / f"{self.index_analysis}_{self.area_of_analysis_name}_dataframe.csv"
         df_raster_inventory.to_csv(df_file_dir,index=False)
 
         return df_raster_inventory
@@ -1731,7 +1737,7 @@ class RasterToPolygon():
         self.index_analysis = index_analysis
         self.area_of_analysis_name = area_of_analysis_name
         self.tmp_dir = tmp_dir
-        self.tmp_dir_name = self.tmp_dir / self.area_of_analysis_name
+        self.tmp_dir_name = f"{self.tmp_dir}/{self.area_of_analysis_name}"
 
         # === DEFAULT VALUES FOR OPTIONAL PARAMETERS ===
         defaults = {
@@ -1791,10 +1797,14 @@ class RasterToPolygon():
         gdf_raster_df = gdf_raster.drop(columns=['geometry'])
 
         # add city information
-        gdf_raster_df['area_of_analysis_name'] = self.area_of_analysis_name
         gdf_raster_analysis['area_of_analysis_name'] = self.area_of_analysis_name
+        gdf_raster_df['area_of_analysis_name'] = self.area_of_analysis_name
 
         log(f'df nan values: {gdf_raster_df[self.index_analysis].isna().sum()}')
+
+        # turn all columns to lowercase
+        gdf_raster_analysis.columns = map(str.lower, gdf_raster_analysis.columns)
+        gdf_raster_df.columns = map(str.lower, gdf_raster_df.columns)
 
         return gdf_raster_analysis, gdf_raster_df
 
@@ -1933,7 +1943,7 @@ class RasterToPolygon():
 
         gdf_raster = self.gdf.copy()
         # read raster file
-        raster_file_dir = self.tmp_dir_name / self.index_analysis + f"_{month}_{year}.tif"
+        raster_file_dir = f"{self.tmp_dir_name}/{self.area_of_analysis_name}_{self.index_analysis}_{month}_{year}.tif"
 
         with rasterio.open(raster_file_dir) as raster_file:
 

@@ -31,8 +31,12 @@ python-dotenv = "^1.0.1"
 h3 = "^4.1.2"
 SQLAlchemy = "^2.0.35"
 matplotlib = "^3.9.2"
-osmnx = "^2.0.0"
+osmnx = "2.0.6"
 
+
+[tool.poetry.group.dev.dependencies]
+ipykernel = "^7.1.0"
+notebook = "^7.4.7"
 
 [build-system]
 requires = ["poetry-core"]
