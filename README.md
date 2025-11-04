@@ -24,10 +24,10 @@ Three demo files were prepared to display the basic usage of some package functi
   Shalala
   
 * [Demo 02 - NDVI raster analysis](demo/Demo-02-NDVI_raster_analysis.ipynb)
-  Shalala
+  * Shalala
   
 * [Demo 03 - Land Surface Temperature analysis](demo/Demo_03-Land_Surface_Temperature_analysis.ipynb)
-  Shalala
+* * Shalala
 
 The demos can be found on the [demo](demo/) folder, while the used input and outputs can be found on the [data/demo_files](data/demo_files/) folder.
 
