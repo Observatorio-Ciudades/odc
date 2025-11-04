@@ -1,6 +1,5 @@
 ![PyPI](https://img.shields.io/pypi/v/odc)
 ![Downloads](https://img.shields.io/pypi/dm/odc)
-![License](https://img.shields.io/github/license/observatoriociudades/odc)
 
 # OdC
 
@@ -21,10 +20,9 @@ pip install odc
 
 Three demo files were prepared to display the basic usage of some package functions and classes. These are the developed demos:
 
-* [Demo 1 – Hexagonal grid creation](demo/demo_hexgrid.ipynb)
-
-
-
+[Demo 1 – Proximity analysis](demo/Demo 1 - proximity analysis.ipynb)
+[Demo 2 – NDVI raster analysis](demo/Demo 2 - NDVI raster analysis.ipynb)
+[Demo 3 – Land Surface Temperature raster analysis](demo/Demo 2 - Surface Temperature analysis.ipynb)
 
 The demos can be found on the [demo](demo/) folder, while the used input and outputs can be found on the [data/demo_files](data/demo_files/) folder.
 
