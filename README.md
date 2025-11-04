@@ -1,11 +1,12 @@
 ![PyPI](https://img.shields.io/pypi/v/odc)
 ![Downloads](https://img.shields.io/pypi/dm/odc)
+![License](https://img.shields.io/github/license/observatoriociudades/odc)
 
 # OdC
 
-The Observatory of Cities (OdC) is an urban science laboratory which seeks to present itself as an innovation platform focused on helping to collect, process, analyze and visualize spatial data related to urban dynamics.
-
-This package streamlines spatial analysis processes by integrating various libraries and developing first-party functions. It is designed as a low-code solution for spatial analysis.
+The OdC (Observatorio de Ciudades) is an urban science laboratory focused on innovation in the collection, processing, analysis and visualization of spatial data related to urban dynamics.
+This Python package provides a low-code toolkit for spatial analysis.
+It integrates well-known geospatial libraries and adds first-party functions developed for faster, reproducible workflows.
 
 ------------
 
@@ -16,4 +17,15 @@ pip install odc
 ```
 ------------
 
-# Demos
+# Spatial analyisis processess demonstrations
+
+Three demo files were prepared to display the basic usage of some package functions and classes. These are the developed demos:
+
+* [Demo 1 – Hexagonal grid creation](demo/demo_hexgrid.ipynb)
+
+
+
+
+The demos can be found on the [demo](demo/) folder, while the used input and outputs can be found on the [data/demo_files](data/demo_files/) folder.
+
+------------
