@@ -25,13 +25,13 @@ Three demo files were prepared to display the basic usage of some package functi
   
   ![Package preview](data/demo_files/outputs_proximity/proximity_analysis.png)
   
-* [Demo 02 - NDVI raster analysis](demo/Demo-02-NDVI_raster_analysis.ipynb)
+* [Demo 02 - NDVI raster analysis](demo/Demo_02-NDVI_raster_analysis.ipynb)
   * Calculates and displays a Normalized Difference Vegetation Index (NDVI) analysis, a spectral index that measures vegetation greenness and vigor.
   * Input files required: Area of interest.
 
   ![Package preview](data/demo_files/outputs_ndvi/ndvi_analysis.png)
   
-* [Demo 03 - Land Surface Temperature analysis](demo/Demo_03-Land_Surface_Temperature_analysis.ipynb)
+* [Demo 03 - Land Surface Temperature analysis](demo/Demo_03-Land_Surface_Temperature_raster_analysis.ipynb)
   * Calculates and displays a Land Surface Temperature (LST) analysis, representing the thermal emission from the Earth's surface. Indicates how hot the surface of the land would feel to the touch.
   * Input files required: Area of interest.
 
