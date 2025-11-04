@@ -27,7 +27,7 @@ def nearest_nodes(
     nodes: GeoDataFrame,
     X: Union[float, List[float]],
     Y: Union[float, List[float]],
-    return_dist: bool = False
+    return_distance: bool = False
 ) -> Union[int, List[int], Tuple[Union[int, List[int]], Union[float, List[float]]]]:
     """
     Find the nearest node to a point or to each of several points.
@@ -50,7 +50,7 @@ def nearest_nodes(
     Y : float or list of float
         Points' y (latitude) coordinates in same CRS as graph.
         Cannot contain null values.
-    return_dist : bool, default False
+    return_distance : bool, default False
         Whether to return distances between points and nearest nodes.
 
     Returns
@@ -93,7 +93,7 @@ def nearest_nodes(
         nodes_rad = np.deg2rad(nodes[["y", "x"]])
         points_rad = np.deg2rad(np.array([Y, X]).T)
         dist, pos = BallTree(nodes_rad, metric="haversine").query(points_rad, k=1)
-        EARTH_RADIUS_M = 6_371_009
+        EARTH_RADIUS_M = 6_371_000
         dist = dist[:, 0] * EARTH_RADIUS_M  # convert radians -> meters
         nn = nodes.index[pos[:, 0]]
 
@@ -104,7 +104,7 @@ def nearest_nodes(
         nn = nn[0]
         dist = dist[0]
 
-    if return_dist:
+    if return_distance:
         return nn, dist
     else:
         return nn
@@ -150,7 +150,7 @@ def find_nearest_point_to_node(
     if 'osmid' in nodes.columns:
         nodes = nodes.set_index('osmid')
 
-    osmnx_tuple = nearest_nodes(G, nodes, list(gdf.geometry.x),list(gdf.geometry.y), return_dist=return_distance)
+    osmnx_tuple = nearest_nodes(G, nodes, gdf.geometry.x.values,gdf.geometry.y.values, return_dist=return_distance)
 
     if return_distance:
         gdf['osmid'] = osmnx_tuple[0]
@@ -234,31 +234,7 @@ def get_seeds(
         Array of igraph node indices corresponding to seed locations.
         Used as input for Voronoi diagram calculations.
     """
-    """
-    Generate seed array for Voronoi diagram calculation from mapped nodes.
-
-    Converts node identifiers from a GeoDataFrame into igraph node indices
-    using the provided mapping. These seeds serve as generator points for
-    network-based Voronoi tessellation.
-
-    Parameters
-    ----------
-    gdf : geopandas.GeoDataFrame
-        GeoDataFrame containing points of interest with nearest node assignments.
-        Must contain the specified column with node identifiers.
-    node_mapping : dict
-        Dictionary mapping original node IDs to igraph node indices.
-        Typically created by the to_igraph function.
-    column_name : str
-        Name of column containing node identifiers to convert to seeds.
-        Usually 'osmid' or 'nearest'.
-
-    Returns
-    -------
-    numpy.ndarray
-        Array of igraph node indices corresponding to seed locations.
-        Used as input for Voronoi diagram calculations.
-    """
+    
     # Get the seed to calculate shortest paths
     return np.array(list([node_mapping[i] for i in gdf[column_name]]))
 
