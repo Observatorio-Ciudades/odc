@@ -36,7 +36,7 @@ Three demo files were prepared to display the basic usage of some package functi
   * Calculates and displays a Land Surface Temperature (LST) analysis, representing the thermal emission from the Earth's surface. Indicates how hot the surface of the land would feel to the touch.
   * Input files required: Area of interest.
 
-  ![Package preview](data/demo_files/outputs_temperature/temperature_tendency.png)
+  ![Package preview](data/demo_files/outputs_temperature/temperature_anomaly.png)
 
 The demos can be found on the [demo](demo/) folder, while the used input and outputs can be found on the [data/demo_files](data/demo_files/) folder.
 
