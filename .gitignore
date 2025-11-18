@@ -11,6 +11,9 @@ tests/__pycache__/*
 .ipynb_checkpoints/
 notebooks/.ipynb_checkpoints
 
+# test logs
+test/logs/*
+
 #data
 data/*
 
