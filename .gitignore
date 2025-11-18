@@ -46,3 +46,10 @@ odc.egg-info/
 
 # env
 *.env
+
+# demo_files
+data/demo_files/ndvi_process/*
+data/demo_files/temperature_process/*
+data/demo_files/outputs_ndvi/*
+data/demo_files/outputs_proximity/*
+data/demo_files/outputs_temperature/*
