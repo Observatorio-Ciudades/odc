@@ -56,3 +56,6 @@ data/demo_files/temperature_process/*
 data/demo_files/outputs_ndvi/*
 data/demo_files/outputs_proximity/*
 data/demo_files/outputs_temperature/*
+
+# demo cache
+demos/cache/*
