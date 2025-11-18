@@ -11,6 +11,12 @@ tests/__pycache__/*
 .ipynb_checkpoints/
 notebooks/.ipynb_checkpoints
 
+# test logs
+test/logs/*
+
+# test cache
+test/cache/*
+
 #data
 data/*
 
@@ -43,3 +49,13 @@ odc.egg-info/
 
 # env
 *.env
+
+# demo_files
+data/demo_files/ndvi_process/*
+data/demo_files/temperature_process/*
+data/demo_files/outputs_ndvi/*
+data/demo_files/outputs_proximity/*
+data/demo_files/outputs_temperature/*
+
+# demo cache
+demos/cache/*
