@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "odc"
-version = "0.1.2"
+version = "0.1.3"
 description = "This package streamlines spatial analysis processes by integrating various libraries and developing first-party functions. It is designed as a low-code solution for spatial analysis."
 authors = ["Observatorio de Ciudades <observatoriodeciudades.tec@gmail.com>"]
 license = "GPLv3"
