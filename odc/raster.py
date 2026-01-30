@@ -494,10 +494,13 @@ class PCRasterData:
         the spatial and temporal areas of interest.
 
         Returns:
-            List of STAC items matching the search criteria
+            List of STAC items matching the search criteria.
 
         Sets:
-            Sets self.items attribute
+            Sets self.items attribute.
+
+        Raises:
+            AvailableData: If no items are found for the specified area and time.
         """
         # gather items from planetary computer by date and area of interest
         catalog = Client.open("https://planetarycomputer.microsoft.com/api/stac/v1")
@@ -522,6 +525,10 @@ class PCRasterData:
             except:
                 log(f"No items found on datetime {t}.")
                 continue
+
+        if len(items) == 0:
+            log("gather_items() - No items found for the specified area and time.")
+            raise AvailableData("No items found for the specified area and time.")
 
         self.items = items
 
