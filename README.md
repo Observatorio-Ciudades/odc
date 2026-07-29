@@ -15,7 +15,7 @@ pip install odc
 ```
 ------------
 
-# Spatial analyisis processess demonstrations
+# Spatial analysis processes demonstrations
 
 Three demo files were prepared to display the basic usage of some package functions and classes. These are the developed demos:
 
