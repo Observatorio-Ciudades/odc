@@ -1,10 +1,11 @@
 ################################################################################
 # Module: Network
 # Set of network processing and creation functions
-# updated: 03/10/2025
+# updated: 29/07/2026
 ################################################################################
 
 from typing import Callable, List, Optional, Tuple, Union
+from collections import Counter
 
 import geopandas as gpd
 import igraph as ig
@@ -17,6 +18,10 @@ from networkx import MultiDiGraph
 from scipy.spatial import cKDTree
 from shapely.geometry import Point
 from sklearn.neighbors import BallTree
+
+from tqdm import tqdm
+
+from joblib import Parallel, delayed, cpu_count
 
 from .utils import *
 
@@ -1193,3 +1198,362 @@ def _format_output(nodes_time, poi_name, count_pois):
     output_cols.extend(["x", "y", "geometry"])
 
     return nodes_time[output_cols]
+
+
+
+def _validate_edge_count_inputs(
+    G,
+    nodes: gpd.GeoDataFrame,
+    edges: gpd.GeoDataFrame,
+    pois_gdf: gpd.GeoDataFrame,
+    prox_measure: str,
+    walking_speed: float,
+) -> None:
+    """Validate inputs for edge counting functions."""
+    if prox_measure not in ["length", "time_min"]:
+        raise ValueError("prox_measure must be 'length' or 'time_min'")
+
+    if walking_speed <= 0:
+        raise ValueError("walking_speed must be positive")
+
+    required_node_cols = ["osmid"]
+    required_edge_cols = ["u", "v"]
+    required_poi_cols = ["geometry"]
+
+    for col in required_node_cols:
+        if col not in nodes.columns:
+            try:
+                nodes = nodes.reset_index()
+            except:
+                pass
+            if col not in nodes.columns:
+                raise ValueError(f"nodes missing required column 'osmid'")
+
+    for col in required_edge_cols:
+        if col not in edges.columns:
+            try:
+                edges = edges.reset_index()
+            except:
+                pass
+            if col not in edges.columns:
+                raise ValueError(f"edges missing required column 'u'/'v'")
+
+    for col in required_poi_cols:
+        if col not in pois_gdf.columns:
+            raise ValueError(f"pois_gdf missing required column 'geometry'")
+
+def _prepare_network_edges(
+    edges: gpd.GeoDataFrame,
+    prox_measure: str,
+    walking_speed: float,
+    projected_crs: str = "EPSG:6372",
+) -> Tuple[gpd.GeoDataFrame, bool]:
+    """
+    Prepare edges with proper length and time calculations.
+    """
+    edges = edges.copy()
+    time_calculated = False
+
+    # Ensure length exists
+    if "length" not in edges.columns or edges["length"].isna().any():
+        missing_length = edges["length"].isna().sum() if "length" in edges.columns else len(edges)
+        if missing_length > 0:
+            edges_projected = edges.to_crs(projected_crs)
+            if "length" not in edges.columns:
+                edges["length"] = np.nan
+            edges.loc[edges["length"].isna(), "length"] = edges_projected.loc[
+                edges["length"].isna()
+            ].length
+            log(f"Calculated length for {missing_length} edges")
+
+    # Handle time_min based on prox_measure
+    if prox_measure == "time_min":
+        if "time_min" not in edges.columns or edges["time_min"].isna().any():
+            missing_time = edges["time_min"].isna().sum() if "time_min" in edges.columns else len(edges)
+            if missing_time > 0:
+                edges["time_min"] = (edges["length"] * 60) / (walking_speed * 1000)
+                log(f"Calculated time_min for {missing_time} edges using {walking_speed} km/h")
+            time_calculated = True
+
+    return edges, time_calculated
+
+def _count_edges_chunk_time(
+    seeds_chunk: np.ndarray,
+    nearest_chunk: np.ndarray,
+    g: ig.Graph,
+    weights: np.ndarray,
+    nodes_arr: np.ndarray,
+    edges_df: pd.DataFrame,
+    evaluated_threshold: float,
+    prox_measure: str,
+) -> Counter:
+    """
+    Process a chunk of POIs with threshold-based edge counting.
+
+    Worker function executed in parallel by joblib. Counts edges traversed
+    in shortest paths from each seed within the evaluation threshold.
+
+    Parameters
+    ----------
+    seeds_chunk : numpy.ndarray
+        Array of igraph node indices for POI seeds in this chunk
+    nearest_chunk : numpy.ndarray
+        Array of nearest network node IDs corresponding to seeds
+    g : igraph.Graph
+        Full network graph converted to igraph format
+    weights : numpy.ndarray
+        Edge weight array for shortest path calculations
+    nodes_arr : numpy.ndarray
+        Array of original node IDs (osmid values)
+    edges_df : pandas.DataFrame
+        Edge dataframe with u, v, key, and prox_measure columns
+    evaluated_threshold : float
+        Threshold value for filtering reachable nodes (meters or minutes)
+    prox_measure : str
+        Weight column name ('length' or 'time_min')
+
+    Returns
+    -------
+    collections.Counter
+        Partial counter of edge traversals for this chunk
+    """
+    edge_counts = Counter()
+    for seed, source_osmid in zip(seeds_chunk, nearest_chunk):
+        dist_row = np.asarray(
+            g.distances([seed], weights=weights, algorithm="dijkstra")[0]
+        )
+        edges_i = count_edges_steps_individual(
+            dist_row,
+            source_osmid,
+            evaluated_threshold,
+            nodes_arr,
+            edges_df,
+            prox_measure,
+        )
+        edge_counts.update(edges_i)
+    return edge_counts
+
+
+def count_edges_steps_individual(
+    dist_row: np.ndarray,
+    source_osmid: int,
+    evaluated_dist: float,
+    nodes_arr: np.ndarray,
+    edges_df: pd.DataFrame,
+    prox_measure: str,
+) -> List[Tuple[int, int, int]]:
+    """
+    Count edges traversed for a single POI within distance/time threshold.
+
+    Extracts reachable subgraph based on threshold, computes shortest paths
+    from source node, and returns all edges traversed across all paths.
+
+    Parameters
+    ----------
+    dist_row : numpy.ndarray
+        Array of distances from source_osmid to all nodes in subgraph
+    source_osmid : int
+        Original node ID of the starting point (POI location)
+    evaluated_dist : float
+        Threshold value for filtering reachable nodes (meters or minutes)
+    nodes_arr : numpy.ndarray
+        Array of original node IDs (osmid values) matching graph structure
+    edges_df : pandas.DataFrame
+        Edge dataframe with u, v, key, and prox_measure columns
+    prox_measure : str
+        Weight column name ('length' or 'time_min')
+
+    Returns
+    -------
+    list of tuple
+        List of (u, v, key) tuples representing traversed edges.
+        Empty list if no valid paths found.
+    """
+    nodes_filter = nodes_arr[dist_row < evaluated_dist]
+    if len(nodes_filter) < 2:
+        return []
+
+    ef = edges_df.loc[
+        edges_df.u.isin(nodes_filter) | edges_df.v.isin(nodes_filter)
+    ].reset_index(drop=True)
+
+    sub_nodes = np.array(list(set(ef.u).union(set(ef.v))))
+    sub_nodes_df = pd.DataFrame(sub_nodes, columns=["osmid"])
+
+    g_f, w_f, sub_map = to_igraph(
+        sub_nodes_df, ef.copy(), weight=prox_measure
+    )
+
+    if source_osmid not in sub_map:
+        return []
+
+    try:
+        routes = g_f.get_shortest_paths(
+            sub_map[source_osmid],
+            weights=w_f,
+            output="epath",
+            algorithm="dijkstra",
+        )
+    except Exception:
+        return []
+
+    endpoints = list(zip(ef.u, ef.v, ef.key))
+    return [endpoints[e] for r in routes for e in r]
+
+
+def count_edges_steps_time(
+    G,
+    nodes: gpd.GeoDataFrame,
+    edges: gpd.GeoDataFrame,
+    pois_gdf: gpd.GeoDataFrame,
+    prox_measure: str = "time_min",
+    trip_time: Optional[float] = None,
+    walking_speed: float = 4.0,
+    projected_crs: str = "EPSG:6372",
+    max_walking_distance: Optional[float] = None,
+    n_jobs: int = -1,
+    progress_callback: Optional[Callable] = None,
+):
+    """
+    Count edges traversed within a time (in minutos) or distance (in meters) threshold from POIs.
+
+    Parameters
+    ----------
+    G : networkx.MultiDiGraph
+        Network graph for nearest_nodes search
+    nodes : geopandas.GeoDataFrame
+        Network nodes with 'osmid' column and geometries (EPSG:4326)
+    edges : geopandas.GeoDataFrame
+        Network edges with 'u', 'v' columns and 'length' (EPSG:4326).
+        Will normalize 'key' column if missing (sets to 0).
+    pois_gdf : geopandas.GeoDataFrame
+        Points of interest (Point geometries, EPSG:4326)
+    prox_measure : str, default 'time_min'
+        Travel cost measure: 'time_min' (minutes) or 'length' (meters)
+    trip_time : float or None, default None
+        Threshold value. Minutes if prox_measure='time_min', meters if 'length'.
+        Required when prox_measure='time_min'.
+    walking_speed : float, default 4.0
+        Walking speed in km/h for time calculations
+    projected_crs : str, default 'EPSG:6372'
+        Projected CRS for accurate length calculations
+    max_walking_distance : float or None, default None
+        Maximum distance in meters to consider POI accessible from network.
+        Filters POIs beyond this distance before counting.
+    n_jobs : int, default -1
+        Number of parallel jobs (-1 = all CPUs)
+    progress_callback : callable, optional
+        Function for progress updates
+
+    Returns
+    -------
+    geopandas.GeoDataFrame
+        Edges with 'passing_count' column indicating traversal frequency
+        Maintains original CRS and geometry
+    """
+    # Validate inputs
+    _validate_edge_count_inputs(
+        G, nodes, edges, pois_gdf, prox_measure, walking_speed
+    )
+
+    # Normalize edges with key column
+    edges = edges.copy()
+    if "key" not in edges.reset_index().columns:
+        edges["key"] = 0
+
+    # Set threshold value
+    if prox_measure == "time_min" and trip_time is None:
+        trip_time = 20.0  # Default 20 minutes
+    elif prox_measure == "length" and trip_time is None:
+        trip_time = 2000.0  # Default 2000 meters
+
+    weight_unit = "minutes" if prox_measure == "time_min" else "meters"
+    log(f"Edge counting with {prox_measure}: {trip_time} {weight_unit}")
+
+    # Prepare edges with proper time/length columns
+    edges_prepared, time_calculated = _prepare_network_edges(
+        edges, prox_measure, walking_speed, projected_crs
+    )
+    if time_calculated:
+        log(f"time_min column generated from length using {walking_speed} km/h")
+
+    # Apply max_walking_distance filter if specified
+    if max_walking_distance is not None and "distance_node" in pois_gdf.columns:
+        pois_gdf = pois_gdf[pois_gdf["distance_node"] <= max_walking_distance].copy()
+        log(f"Filtered to {len(pois_gdf)} POIs within {max_walking_distance}m")
+
+    #Convert to igraph — include u, v, key, weight
+    edges_df = edges_prepared.reset_index()[["u", "v", "key", prox_measure]].copy()
+    nodes_df = nodes.reset_index()[["osmid"]].copy()
+
+    g, weights, node_mapping = to_igraph(
+        nodes_df.copy(),
+        edges_df.copy(),
+        weight=prox_measure,
+    )
+    nodes_arr = np.array(list(node_mapping.keys()))
+
+    # Find nearest nodes for each POI
+    pois_df = pd.DataFrame({
+        "nearest_node": nearest_nodes(
+            G,
+            nodes,
+            list(pois_gdf.geometry.x),
+            list(pois_gdf.geometry.y),
+        )
+    })
+    seeds = get_seeds(pois_df, node_mapping, "nearest_node")
+    nearest = pois_df.nearest_node.to_numpy()
+
+    # Handle empty case
+    if len(seeds) == 0 or len(nearest) == 0:
+        log(f"No POIs found - returning edges with zero counts")
+        edges_count = edges.reset_index()
+        edges_count["passing_count"] = 0
+        edges_count = gpd.GeoDataFrame(edges_count, geometry="geometry", crs=edges.crs)
+        return edges_count
+
+    # Parallel chunk processing
+    total_cores = cpu_count()
+    n_workers = max(1, total_cores + n_jobs + 1) if n_jobs < 0 else max(1, n_jobs)
+    n_workers = min(n_workers, max(1, len(seeds)))
+
+    n_chunks = max(1, min(len(seeds), n_workers * 4))
+    seed_chunks = np.array_split(np.asarray(seeds), n_chunks)
+    nearest_chunks = np.array_split(nearest, n_chunks)
+
+    tasks = (
+            delayed(_count_edges_chunk_time)(
+                sc, nc, g, weights, nodes_arr, edges_df, trip_time, prox_measure
+            )
+            for sc, nc in zip(seed_chunks, nearest_chunks)
+            if len(sc) > 0
+        )
+    n_tasks = sum(1 for sc in seed_chunks if len(sc) > 0)
+
+    results = Parallel(n_jobs=n_jobs, return_as="generator_unordered")(tasks)
+
+    edge_counts = Counter()
+    for partial in tqdm(results, total=n_tasks, desc=f"Counting edges ({prox_measure})"):
+        edge_counts.update(partial)
+
+    # Map counts back to edges GeoDataFrame — merge on u, v, key
+    counts_df = pd.DataFrame(
+        [(u, v, k, c) for (u, v, k), c in edge_counts.items()],
+        columns=["u", "v", "key", "passing_count"]
+    )
+
+    edges_count = edges.reset_index().merge(
+        counts_df, on=["u", "v", "key"], how="left"
+    )
+    edges_count["passing_count"] = edges_count["passing_count"].fillna(0).astype(int)
+
+    # Restore original CRS
+    edges_count = gpd.GeoDataFrame(
+        edges_count,
+        geometry="geometry",
+        crs=edges.crs
+    )
+
+    log(f"Completed: {len(edge_counts)} unique edges counted from {len(pois_gdf)} POIs")
+    return edges_count
