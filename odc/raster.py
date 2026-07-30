@@ -938,10 +938,6 @@ class PCRasterData:
                     f"{self.year_}-{self.month_:02d} - MONTH ITERATION {self.iter_count}."
                 )
 
-                # --- GATHER UPDATED LINKS - Since links expire after some time, they are gathered at each iteration
-                # gather items for the date range from planetary computer
-                self.gather_items()
-
                 # --- FIND BEST DATES PER TILE - From all month's available items, find the date with lowest cloud coverage for each tile
                 # Re-create df_tile (tiles with cloud pct dataframe) for currently explored dates
                 self.available_datasets()
@@ -1005,8 +1001,18 @@ class PCRasterData:
                 # --- CREATE LINKS DICTIONARY - Create dictionary of links with best dates and tiles only.
                 # change date_list to dates_month_min_cloud to create assets_hrefs with best dates only
                 self.date_list = dates_month_min_cloud
-                # gather links from dates that are within dates_month_min_cloud
-                self.link_dict()
+                # build assets_hrefs manually from filtered_items only
+                assets_hrefs_filtered = {}
+                for item in filtered_items:
+                    d = item.datetime.date()
+                    if d not in assets_hrefs_filtered:
+                        assets_hrefs_filtered[d] = {b: [] for b in self.band_name_list}
+                    for b in self.band_name_list:
+                        assets_hrefs_filtered[d][b].append(
+                            pc.sign(self._find_asset_by_band_common_name(item, b).href)
+                        )
+
+                # Then build best_links_by_band from this filtered dict
                 # recover complete date list if using compute_month_fallback, since the full date list is used in other parts of the code
                 self.date_list = self.complete_date_list
 
@@ -1277,7 +1283,7 @@ class PCRasterData:
 
             raster_array[b][0] = raster_array[b][0].astype("float32")
 
-            log(f"Finished croping: {b}")
+            log(f"Finished cropping: {b}")
 
             log(f"Finished processing {b}")
 
