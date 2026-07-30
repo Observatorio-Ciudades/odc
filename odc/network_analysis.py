@@ -1026,33 +1026,6 @@ def _handle_empty_pois(
         return nodes_time[["osmid", f"time_{poi_name}", "x", "y", "geometry"]]
 
 
-def _prepare_network_edges(edges, prox_measure, walking_speed, projected_crs):
-    """Prepare network edges with proper length and time calculations."""
-    edges = edges.copy()
-
-    # Fill missing length values
-    missing_length = edges["length"].isna().sum()
-    if missing_length > 0:
-        edges_projected = edges.to_crs(projected_crs)
-        edges.loc[edges["length"].isna(), "length"] = edges_projected.loc[
-            edges["length"].isna()
-        ].length
-        log(f"Calculated length for {missing_length} edges")
-
-    # Calculate or fix time values
-    if prox_measure == "length":
-        edges["time_min"] = (edges["length"] * 60) / (walking_speed * 1000)
-    else:
-        missing_time = edges["time_min"].isna().sum()
-        if missing_time > 0:
-            edges.loc[edges["time_min"].isna(), "time_min"] = (
-                edges.loc[edges["time_min"].isna(), "length"] * 60
-            ) / (walking_speed * 1000)
-            log(f"Calculated time for {missing_time} edges using walking speed")
-
-    return edges
-
-
 def _calculate_poi_distances_batch(
     nearest, nodes, edges, poi_name, count_pois, progress_callback
 ):
