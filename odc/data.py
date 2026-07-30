@@ -142,7 +142,7 @@ def clear_directory(
 def download_osm_network(
     area_of_interest: gpd.GeoDataFrame,
     method: str = 'from_polygon',
-    network_type: str = 'all_private',
+    network_type: str = 'all',
 ) -> tuple[nx.MultiDiGraph, gpd.GeoDataFrame, gpd.GeoDataFrame]:
     """
     Download OSM network data and return graph, nodes, and edges.
@@ -151,7 +151,7 @@ def download_osm_network(
         area_of_interest: GeoDataFrame defining the area boundary in EPSG:4326
         method: Method for downloading ('from_polygon' or 'from_bbox')
         network_type: Type of network to download
-                     ('drive', 'walk', 'bike', 'all_private', 'all')
+                     ('drive', 'walk', 'bike', 'all')
 
     Returns:
         Tuple containing:
@@ -172,11 +172,11 @@ def download_osm_network(
     if method not in valid_methods:
         raise ValueError(f"Invalid method '{method}'. Must be one of {valid_methods}")
 
-    valid_network_types = {'drive', 'walk', 'bike', 'all_private', 'all'}
+    valid_network_types = {'all', 'all_public', 'bike', 'drive', 'drive_service', 'walk'}
     if network_type not in valid_network_types:
         raise ValueError(f"Invalid network_type '{network_type}'. "
                         f"Must be one of {valid_network_types}")
-    
+
     # Convert to EPSG:4326 for graph download
     if area_of_interest.crs != "EPSG:4326":
         area_of_interest = area_of_interest.to_crs("EPSG:4326")
