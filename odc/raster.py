@@ -532,6 +532,19 @@ class PCRasterData:
 
         self.items = items
 
+    def _get_tile_and_cloud(self, item) -> Tuple[str, float]:
+        """Extract tile identifier and cloud percentage from STAC item."""
+        if self.satellite == "sentinel-2-l2a":
+            tile = item.properties["s2:mgrs_tile"]
+            cloud = item.properties["s2:high_proba_clouds_percentage"]
+        else:  # landsat-c2-l2
+            path = int(item.properties['landsat:wrs_path'])
+            row = int(item.properties['landsat:wrs_row'])
+            tile = f"{path:03d}{row:03d}"
+            cloud = item.properties["landsat:cloud_cover_land"]
+        return tile, cloud
+
+
     def available_datasets(self) -> List:
         """
         Filter satellite imagery by cloud coverage and quality metrics.
@@ -545,85 +558,22 @@ class PCRasterData:
         Sets:
             Sets self.date_list and self.min_cloud_value attributes
         """
-        if self.sat_query:
-            if "eo:cloud_cover" in list(self.sat_query.keys()):
-                self.min_cloud_value = self.sat_query["eo:cloud_cover"]["lt"]
+        if self.sat_query and "eo:cloud_cover" in list(self.sat_query.keys()):
+            self.min_cloud_value = self.sat_query["eo:cloud_cover"]["lt"]
 
         # test raster outliers by date
         date_dict = {}
 
         # iterate over raster tiles by date
-        for i in self.items:
-            if self.satellite == "sentinel-2-l2a":
-                # check and add raster properties to dictionary by tile and date
-                # if date is within dictionary append properties from item to list
-                if i.datetime.date() in list(date_dict.keys()):
-                    # gather cloud percentage, high_proba_clouds_percentage, no_data values and nodata_pixel_percentage
-                    # check if properties are within dictionary date keys
-                    if i.properties["s2:mgrs_tile"] + "_cloud" in list(
-                        date_dict[i.datetime.date()].keys()
-                    ):
-                        date_dict[i.datetime.date()].update(
-                            {
-                                i.properties["s2:mgrs_tile"] + "_cloud": i.properties[
-                                    "s2:high_proba_clouds_percentage"
-                                ]
-                            }
-                        )
-                    else:
-                        date_dict[i.datetime.date()].update(
-                            {
-                                i.properties["s2:mgrs_tile"] + "_cloud": i.properties[
-                                    "s2:high_proba_clouds_percentage"
-                                ]
-                            }
-                        )
-                # create new date key and add properties to it
-                else:
-                    date_dict[i.datetime.date()] = {}
-                    date_dict[i.datetime.date()].update(
-                        {
-                            i.properties["s2:mgrs_tile"] + "_cloud": i.properties[
-                                "s2:high_proba_clouds_percentage"
-                            ]
-                        }
-                    )
+        for item in self.items:
+            date_key = item.datetime.date()
+            tile, cloud = self._get_tile_and_cloud(item)
+            tile_key = tile + "_cloud"
 
-            elif self.satellite == "landsat-c2-l2":
-                # check and add raster properties to dictionary by tile and date
-                # if date is within dictionary append properties from item to list
-                if i.datetime.date() in list(date_dict.keys()):
-                    # gather cloud percentage, high_proba_clouds_percentage, no_data values and nodata_pixel_percentage
-                    # check if properties are within dictionary date keys
-                    if (
-                        f"{int(i.properties['landsat:wrs_path']):03d}{int(i.properties['landsat:wrs_row']):03d}_cloud"
-                        in list(date_dict[i.datetime.date()].keys())
-                    ):
-                        date_dict[i.datetime.date()].update(
-                            {
-                                f"{int(i.properties['landsat:wrs_path']):03d}{int(i.properties['landsat:wrs_row']):03d}_cloud": i.properties[
-                                    "landsat:cloud_cover_land"
-                                ]
-                            }
-                        )
-                    else:
-                        date_dict[i.datetime.date()].update(
-                            {
-                                f"{int(i.properties['landsat:wrs_path']):03d}{int(i.properties['landsat:wrs_row']):03d}_cloud": i.properties[
-                                    "landsat:cloud_cover_land"
-                                ]
-                            }
-                        )
-                # create new date key and add properties to it
-                else:
-                    date_dict[i.datetime.date()] = {}
-                    date_dict[i.datetime.date()].update(
-                        {
-                            f"{int(i.properties['landsat:wrs_path']):03d}{int(i.properties['landsat:wrs_row']):03d}_cloud": i.properties[
-                                "landsat:cloud_cover_land"
-                            ]
-                        }
-                    )
+            if date_key not in date_dict:
+                date_dict[date_key] = {}
+
+            date_dict[date_key][tile_key] = cloud
 
         # determine third quartile for each tile
         df_tile = pd.DataFrame.from_dict(date_dict, orient="index")
@@ -736,17 +686,11 @@ class PCRasterData:
         df_dates_filtered = pd.DataFrame()
 
         # keep only one data point by month
-        for y in df_dates["year"].unique():
-            for m in df_dates.loc[df_dates["year"] == y, "month"].unique():
-                df_dates_filtered = pd.concat(
-                    [
-                        df_dates_filtered,
-                        df_dates.loc[
-                            (df_dates["year"] == y) & (df_dates["month"] == m)
-                        ].sample(1),
-                    ],
-                    ignore_index=True,
-                )
+        df_dates_filtered = (
+            df_dates.groupby(["year", "month"], as_index=False)
+            .sample(n=1)
+            .reset_index(drop=True)
+        )
 
         # create full range time dataframe
         df_tmp_dates = pd.DataFrame()  # temporary date dataframe
@@ -813,6 +757,11 @@ class PCRasterData:
             Creates raster files in tmp_dir_name directory
             Updates CSV file tracking processing progress
         """
+        # remove any existing raster files in tmp_dir_name if previously processed
+        if self.processing_raster_dir.exists():
+            for f in self.processing_raster_dir.glob("*.tif"):
+                f.unlink()
+
         df_raster_inventory["able_to_download"] = np.nan
 
         log("\n Starting raster analysis")
@@ -866,9 +815,10 @@ class PCRasterData:
         # create skip date list used to analyze null values in raster
         self.skip_date_list = []
 
+        # gather links for the date range from planetary computer
+        self.gather_items()
+
         while self.iter_count <= self.MAX_RETRY_ATTEMPTS:
-            # gather links for the date range from planetary computer
-            self.gather_items()
 
             # gather links from dates that are within date_list
             self.link_dict()
@@ -1151,6 +1101,7 @@ class PCRasterData:
                 f"{self.processing_raster_dir}/{self.index_analysis}.tif"
             )
             gdf_raster_test = self.gdf_raster_test.to_crs(raster_file.crs)
+            raster_file.close()
 
             try:
                 # test for nan values within study area
@@ -1160,7 +1111,7 @@ class PCRasterData:
                 # save raster to processing database
                 index_raster_dir = (
                     self.tmp_dir_name
-                    / f"{self.area_of_analysis_name}_{self.index_analysis}_{self.month_}_{self.year_}.tif"
+                    / f"{self.area_of_analysis_name}_{self.index_analysis}_{self.year_}_{self.month_}.tif"
                 )
                 self.save_output_raster(raster_fill, index_raster_dir, out_meta)
                 log(f"Finished saving {self.index_analysis} raster")
@@ -1354,11 +1305,17 @@ class PCRasterData:
         mosaic, out_trans = merge(src_files_to_mosaic, method="first")
         log(f"mosaic_raster() - Merged {len(src_files_to_mosaic)} tiles.")
 
-        meta = src.meta
+        meta = src_files_to_mosaic[0].meta.copy()
+        meta.update({
+            "height": mosaic.shape[1],
+            "width": mosaic.shape[2],
+            "transform": out_trans,
+        })
+        tmp_files = []
 
         if upscale:
             # save raster
-            out_meta = src.meta
+            out_meta = meta
 
             out_meta.update(
                 {
@@ -1426,22 +1383,13 @@ class PCRasterData:
         """
 
         if len(self.index_equation) == 0:
-            # if there is no equation the raster array is the result
-            raster_idx = raster_arrays[list(raster_arrays.keys())[0]]
-            return raster_idx
+                return raster_arrays[list(raster_arrays.keys())[0]]
 
         raster_equation = self.index_equation[0]
+        namespace = {rb: raster_arrays[rb][0] for rb in raster_arrays}
+        namespace["__builtins__"] = {}
 
-        for rb in raster_arrays.keys():
-            raster_equation = raster_equation.replace(rb, f"ra['{rb}'][0]")
-        # create global variable in order to use it in exec as global
-        global ra
-        ra = raster_arrays
-        exec(f"raster_index = {raster_equation}", globals())
-
-        del ra
-
-        return raster_index
+        return eval(raster_equation, namespace)
 
     def _define_processing_directory(self, df_raster_inventory: pd.DataFrame) -> Path:
         """
@@ -1502,7 +1450,7 @@ class PCRasterData:
         self.year_ = df_raster.loc[df_raster.index == i].year.values[0]
 
         # Create raster file path
-        raster_filename = f"{self.area_of_analysis_name}_{self.index_analysis}_{self.month_}_{self.year_}.tif"
+        raster_filename = f"{self.area_of_analysis_name}_{self.index_analysis}_{self.year_}_{self.month_}.tif"
         raster_path = self.tmp_dir_name / raster_filename
 
         # Check if raster already exists
@@ -1579,8 +1527,6 @@ class PCRasterData:
 
         with rasterio.open(output_raster_path, "w", **output_meta) as dest:
             dest.write(single_raster_array)
-
-            dest.close()
 
     def _raster_nan_test(self, gdf, raster_file):
         """
@@ -1801,6 +1747,7 @@ class PCRasterData:
         raster_file = rasterio.open(raster_path)
         meta = raster_file.meta
         available_raster = raster_file.read()
+        raster_file.close()
 
         return available_raster, meta
 
@@ -1840,8 +1787,6 @@ class PCRasterData:
 
         with rasterio.open(raster_path, "w", **meta) as dest:
             dest.write(available_raster)
-
-            dest.close()
 
             log("Finished creating raster")
             df_raster_inventory.loc[
@@ -2183,7 +2128,7 @@ class RasterToPolygon:
                 gdf_raster[self.index_analysis] = gdf_raster.geometry.apply(
                     lambda geom: clean_mask(geom, raster_file)
                 ).apply(np.ma.mean)
-            except:
+            except Exception as e:
                 log(f"Error processing year {year}, month {month}: {str(e)}")
                 gdf_raster[self.index_analysis] = np.nan
             # adds month and year columns to the hex_raster geodataframe
@@ -2215,13 +2160,16 @@ class RasterToPolygon:
         )
 
         df_raster_minmax.columns = ["_".join(col) for col in df_raster_minmax.columns]
+        df_raster_minmax = df_raster_minmax.rename(columns={
+            f"{self.index_analysis}_max": f"{self.index_analysis}_avg_yearly_max",
+            f"{self.index_analysis}_min": f"{self.index_analysis}_avg_yearly_min"})
         df_raster_minmax = df_raster_minmax.reset_index()
         df_raster_minmax = (
             df_raster_minmax[
                 [
                     self.feature_unique_id,
-                    f"{self.index_analysis}_max",
-                    f"{self.index_analysis}_min",
+                    f"{self.index_analysis}_avg_yearly_max",
+                    f"{self.index_analysis}_avg_yearly_min",
                 ]
             ]
             .groupby([self.feature_unique_id])
@@ -2280,8 +2228,8 @@ class RasterToPolygon:
             df_group_data, on=self.feature_unique_id
         )
         gdf_raster_analysis[self.index_analysis + "_diff"] = (
-            gdf_raster_analysis[self.index_analysis + "_max"]
-            - gdf_raster_analysis[self.index_analysis + "_min"]
+            gdf_raster_analysis[self.index_analysis + "_avg_yearly_max"]
+            - gdf_raster_analysis[self.index_analysis + "_avg_yearly_min"]
         )
         gdf_raster_analysis[self.index_analysis + "_tend"] = gdf_raster_analysis[
             f"{self.index_analysis}_sens_slope"
