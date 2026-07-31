@@ -7,6 +7,7 @@ import osmnx as ox
 import igraph as ig
 from shapely.geometry import Point, LineString
 from unittest.mock import patch, MagicMock
+from collections import Counter
 import tempfile
 import os
 import sys
@@ -67,7 +68,7 @@ class TestNetworkAnalysis:
 
     def test_nearest_nodes_with_distance(self, sample_graph, sample_nodes):
         """Test nearest nodes returning distances."""
-        node_id, distance = network_analysis.nearest_nodes(sample_graph, sample_nodes, -99.1439583, 19.3987151, return_dist=True)
+        node_id, distance = network_analysis.nearest_nodes(sample_graph, sample_nodes, -99.1439583, 19.3987151, return_distance=True)
         assert isinstance(node_id, int)
         assert isinstance(distance, float)
         assert distance >= 0
@@ -75,7 +76,7 @@ class TestNetworkAnalysis:
     # Test find_nearest function
     def test_find_nearest_basic(self, sample_graph, sample_nodes, sample_pois):
         """Test basic find nearest functionality."""
-        result = network_analysis.find_nearest_point_to_node(sample_graph, 
+        result = network_analysis.find_nearest_point_to_node(sample_graph,
                                                              sample_nodes,
                                                              sample_pois)
         assert 'osmid' in result.columns
@@ -106,7 +107,7 @@ class TestNetworkAnalysis:
         # Create test data with osmid column
         pois_test = sample_pois.copy()
         G_copy = sample_graph.copy()
-        test_gdf = network_analysis.find_nearest_point_to_node(G_copy, 
+        test_gdf = network_analysis.find_nearest_point_to_node(G_copy,
                                                                nodes_copy,
                                                                pois_test)
         seeds = network_analysis.get_seeds(test_gdf, node_mapping, 'osmid')
@@ -149,12 +150,12 @@ class TestNetworkAnalysis:
         # Create test POI data with osmid assignments
         test_pois = sample_pois.copy()
         nodes_test = sample_nodes.reset_index()
-        
+
         G_copy = sample_graph.copy()
-        test_pois = network_analysis.find_nearest_point_to_node(G_copy, 
+        test_pois = network_analysis.find_nearest_point_to_node(G_copy,
                                                                sample_nodes,
                                                                test_pois)
-        
+
         result = network_analysis.calculate_distance_nearest_poi(
             test_pois, nodes_test, sample_edges,
             'test_poi', 'osmid', weight='length'
@@ -258,6 +259,88 @@ class TestNetworkAnalysis:
         )
 
         assert 'time_park' in result.columns
+
+    # Test count_edges_steps_time function (edge counting analysis)
+    def test_count_edges_steps_time_basic(self, sample_graph, sample_nodes, sample_edges, sample_pois):
+        """Test basic edge counting by time threshold."""
+        result = network_analysis.count_edges_steps_time(
+            sample_graph,
+            sample_nodes.reset_index(),
+            sample_edges,
+            sample_pois,
+            prox_measure='time_min',
+            trip_time=10.0,
+            walking_speed=4.0,
+            n_jobs=1
+        )
+
+        assert 'passing_count' in result.columns
+        assert len(result) <= len(sample_edges)
+        assert all(isinstance(c, int) for c in result['passing_count'])
+
+    def test_count_edges_steps_time_distance_mode(self, sample_graph, sample_nodes, sample_edges, sample_pois):
+        """Test edge counting by distance threshold (meters)."""
+        result = network_analysis.count_edges_steps_time(
+            sample_graph,
+            sample_nodes.reset_index(),
+            sample_edges,
+            sample_pois,
+            prox_measure='length',
+            trip_time=500.0,
+            n_jobs=1
+        )
+
+        assert 'passing_count' in result.columns
+        assert result.crs == sample_edges.crs
+
+    def test_count_edges_steps_time_max_walking_distance(self, sample_graph, sample_nodes, sample_edges, sample_pois):
+        """Test filtering POIs by max walking distance from network."""
+        pois_with_distance = sample_pois.copy()
+        pois_with_distance['distance_node'] = [50.0, 5000.0]  # One close, one far
+
+        result = network_analysis.count_edges_steps_time(
+            sample_graph,
+            sample_nodes.reset_index(),
+            sample_edges,
+            pois_with_distance,
+            prox_measure='time_min',
+            trip_time=10.0,
+            max_walking_distance=200.0,
+            n_jobs=1
+        )
+
+        assert 'passing_count' in result.columns
+        # Only POI at 50m should contribute to counts
+
+
+    def test_count_edges_steps_time_default_values(self, sample_graph, sample_nodes, sample_edges, sample_pois):
+        """Test function with default trip_time values."""
+        result = network_analysis.count_edges_steps_time(
+            sample_graph,
+            sample_nodes.reset_index(),
+            sample_edges,
+            sample_pois,
+            prox_measure='time_min',
+            n_jobs=1
+        )
+
+        assert 'passing_count' in result.columns
+        # Should use default 20 minutes threshold
+
+    def test_count_edges_steps_time_no_reachable_edges(self, sample_graph, sample_nodes, sample_edges, sample_pois):
+        """Test with extremely small threshold resulting in no edges."""
+        result = network_analysis.count_edges_steps_time(
+            sample_graph,
+            sample_nodes.reset_index(),
+            sample_edges,
+            sample_pois,
+            prox_measure='time_min',
+            trip_time=0.001,  # Extremely small threshold
+            n_jobs=1
+        )
+
+        assert 'passing_count' in result.columns
+        assert result['passing_count'].sum() == 0
 
 
 # Simple test runner

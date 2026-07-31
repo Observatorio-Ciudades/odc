@@ -1,7 +1,7 @@
 ################################################################################
 # Module: Network
 # Set of network processing and creation functions
-# updated: 29/07/2026
+# updated: 30/07/2026
 ################################################################################
 
 from typing import Callable, List, Optional, Tuple, Union
@@ -1220,12 +1220,11 @@ def _prepare_network_edges(
     prox_measure: str,
     walking_speed: float,
     projected_crs: str = "EPSG:6372",
-) -> Tuple[gpd.GeoDataFrame, bool]:
+) -> gpd.GeoDataFrame:
     """
     Prepare edges with proper length and time calculations.
     """
     edges = edges.copy()
-    time_calculated = False
 
     # Ensure length exists
     if "length" not in edges.columns or edges["length"].isna().any():
@@ -1240,15 +1239,13 @@ def _prepare_network_edges(
             log(f"Calculated length for {missing_length} edges")
 
     # Handle time_min based on prox_measure
-    if prox_measure == "time_min":
-        if "time_min" not in edges.columns or edges["time_min"].isna().any():
-            missing_time = edges["time_min"].isna().sum() if "time_min" in edges.columns else len(edges)
-            if missing_time > 0:
-                edges["time_min"] = (edges["length"] * 60) / (walking_speed * 1000)
-                log(f"Calculated time_min for {missing_time} edges using {walking_speed} km/h")
-            time_calculated = True
+    if "time_min" not in edges.columns or edges["time_min"].isna().any():
+        missing_time = edges["time_min"].isna().sum() if "time_min" in edges.columns else len(edges)
+        if missing_time > 0:
+            edges["time_min"] = (edges["length"] * 60) / (walking_speed * 1000)
+            log(f"Calculated time_min for {missing_time} edges using {walking_speed} km/h")
 
-    return edges, time_calculated
+    return edges
 
 def _count_edges_chunk_time(
     seeds_chunk: np.ndarray,
@@ -1444,11 +1441,9 @@ def count_edges_steps_time(
     log(f"Edge counting with {prox_measure}: {trip_time} {weight_unit}")
 
     # Prepare edges with proper time/length columns
-    edges_prepared, time_calculated = _prepare_network_edges(
+    edges_prepared = _prepare_network_edges(
         edges, prox_measure, walking_speed, projected_crs
     )
-    if time_calculated:
-        log(f"time_min column generated from length using {walking_speed} km/h")
 
     # Apply max_walking_distance filter if specified
     if max_walking_distance is not None and "distance_node" in pois_gdf.columns:
@@ -1466,11 +1461,15 @@ def count_edges_steps_time(
     )
     nodes_arr = np.array(list(node_mapping.keys()))
 
+    nodes_for_nn = nodes.copy()
+    if "osmid" in nodes_for_nn.columns:
+        nodes_for_nn = nodes_for_nn.set_index("osmid")
+
     # Find nearest nodes for each POI
     pois_df = pd.DataFrame({
         "nearest_node": nearest_nodes(
             G,
-            nodes,
+            nodes_for_nn,
             list(pois_gdf.geometry.x),
             list(pois_gdf.geometry.y),
         )

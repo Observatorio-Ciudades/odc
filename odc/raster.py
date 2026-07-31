@@ -1,7 +1,7 @@
 ################################################################################
 # Module: Raster
 # Set of raster data treatment and analysis functions, mainly using Planetary Computer
-# updated: 09/09/2025
+# updated: 30/07/2026
 ################################################################################
 
 import multiprocessing as mp
@@ -2105,7 +2105,8 @@ class RasterToPolygon:
 
         try:
             # Create pool with context manager for proper cleanup
-            with Pool(processes=self.num_workers) as pool:
+            ctx = mp.get_context("spawn")
+            with ctx.Pool(processes=self.num_workers) as pool:
                 # Submit all jobs
                 async_results = [
                     pool.apply_async(self._wrap_mask_by_polygon, args)

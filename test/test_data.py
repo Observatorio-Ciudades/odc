@@ -79,23 +79,23 @@ class TestData:
             'string': ['string_col']
         }
         result = data.convert_column_types(sample_dataframe, type_mapping)
-        
+
         assert result['int_col'].dtype in [np.int8,np.int32, np.int64]
         assert result['float_col'].dtype in [np.float32, np.float64]
-        assert result['string_col'].dtype == object
+        assert pd.api.types.is_string_dtype(result['string_col'])
 
     def test_convert_column_types_boolean(self, sample_dataframe):
         """Test boolean conversion."""
         type_mapping = {'boolean': ['bool_col']}
         result = data.convert_column_types(sample_dataframe, type_mapping)
-        
+
         assert result['bool_col'].dtype == bool
 
     def test_convert_column_types_datetime(self, sample_dataframe):
         """Test datetime conversion."""
         type_mapping = {'datetime': ['date_col']}
         result = data.convert_column_types(sample_dataframe, type_mapping)
-        
+
         assert pd.api.types.is_datetime64_any_dtype(result['date_col'])
 
     def test_convert_column_types_multiple_types(self, sample_dataframe):
@@ -107,31 +107,31 @@ class TestData:
             'boolean': ['bool_col']
         }
         result = data.convert_column_types(sample_dataframe, type_mapping)
-        
+
         assert result['int_col'].dtype in [np.int8,np.int32, np.int64]
         assert result['float_col'].dtype in [np.float32, np.float64]
-        assert result['string_col'].dtype == object
+        assert pd.api.types.is_string_dtype(result['string_col'])
         assert result['bool_col'].dtype == bool
 
     def test_convert_column_types_empty_dataframe(self):
         """Test handling of empty DataFrame."""
         empty_df = pd.DataFrame()
         type_mapping = {'string': ['col1']}
-        
+
         with pytest.raises(ValueError, match="cannot be None or empty"):
             data.convert_column_types(empty_df, type_mapping)
 
     def test_convert_column_types_invalid_type(self, sample_dataframe):
         """Test handling of invalid data type."""
         type_mapping = {'invalid_type': ['int_col']}
-        
+
         with pytest.raises(ValueError, match="Unsupported data type"):
             data.convert_column_types(sample_dataframe, type_mapping)
 
     def test_convert_column_types_missing_column(self, sample_dataframe):
         """Test handling of missing column."""
         type_mapping = {'string': ['nonexistent_column']}
-        
+
         with pytest.raises(KeyError, match="not found in DataFrame"):
             data.convert_column_types(sample_dataframe, type_mapping)
 
@@ -143,7 +143,7 @@ class TestData:
     def test_convert_column_types_non_list_columns(self, sample_dataframe):
         """Test handling of non-list column specification."""
         type_mapping = {'string': 'int_col'}  # Should be a list
-        
+
         with pytest.raises(ValueError, match="must be a list"):
             data.convert_column_types(sample_dataframe, type_mapping)
 
@@ -155,9 +155,9 @@ class TestData:
         test_file2 = Path(temp_directory) / "test2.txt"
         test_file1.write_text("content")
         test_file2.write_text("content")
-        
+
         result = data.clear_directory(temp_directory)
-        
+
         assert result['files'] == 2
         assert result['directories'] == 0
         assert len(list(Path(temp_directory).iterdir())) == 0
@@ -168,9 +168,9 @@ class TestData:
         subdir = Path(temp_directory) / "subdir"
         subdir.mkdir()
         (subdir / "file.txt").write_text("content")
-        
+
         result = data.clear_directory(temp_directory)
-        
+
         assert result['directories'] == 1
         assert len(list(Path(temp_directory).iterdir())) == 0
 
@@ -183,14 +183,14 @@ class TestData:
         """Test handling of non-directory path."""
         file_path = Path(temp_directory) / "test.txt"
         file_path.write_text("content")
-        
+
         with pytest.raises(ValueError, match="not a directory"):
             data.clear_directory(file_path)
 
     def test_clear_directory_empty(self, temp_directory):
         """Test clearing already empty directory."""
         result = data.clear_directory(temp_directory)
-        
+
         assert result['files'] == 0
         assert result['directories'] == 0
 
@@ -202,7 +202,7 @@ class TestData:
             method='from_polygon',
             network_type='walk'
         )
-        
+
         assert isinstance(graph, nx.MultiDiGraph)
         assert isinstance(nodes, gpd.GeoDataFrame)
         assert isinstance(edges, gpd.GeoDataFrame)
@@ -218,13 +218,13 @@ class TestData:
             method='from_bbox',
             network_type='walk'
         )
-        
+
         assert isinstance(graph, nx.MultiDiGraph)
         assert isinstance(nodes, gpd.GeoDataFrame)
         assert isinstance(edges, gpd.GeoDataFrame)
         assert len(nodes) > 0
         assert len(edges) > 0
-                           
+
     def test_download_osm_network_nodes_structure(self, sample_polygon_gdf):
         """Test that nodes have required columns."""
         graph, nodes, edges = data.download_osm_network(
@@ -232,7 +232,7 @@ class TestData:
             method='from_polygon',
             network_type='walk'
         )
-        
+
         required_columns = ["x", "y", "street_count", "geometry"]
         for col in required_columns:
             assert col in nodes.columns
@@ -244,7 +244,7 @@ class TestData:
             method='from_polygon',
             network_type='walk'
         )
-        
+
         required_columns = ["osmid", "oneway", "length", "geometry"]
         for col in required_columns:
             assert col in edges.columns
@@ -252,7 +252,7 @@ class TestData:
     def test_download_osm_network_empty_geodataframe(self):
         """Test handling of empty GeoDataFrame."""
         empty_gdf = gpd.GeoDataFrame(columns=['geometry'], crs='EPSG:4326')
-        
+
         with pytest.raises(ValueError, match="cannot be None or empty"):
             data.download_osm_network(empty_gdf)
 
@@ -287,7 +287,7 @@ class TestData:
     def test_create_hexagonal_grid_basic(self, sample_polygon_gdf):
         """Test basic hexagonal grid creation."""
         result = data.create_hexagonal_grid(sample_polygon_gdf, resolution=8)
-        
+
         assert isinstance(result, gpd.GeoDataFrame)
         assert len(result) > 0
         assert 'hex_id_8' in result.columns
@@ -297,7 +297,7 @@ class TestData:
         """Test hexagonal grid with different resolutions."""
         result_low = data.create_hexagonal_grid(sample_polygon_gdf, resolution=9)
         result_high = data.create_hexagonal_grid(sample_polygon_gdf, resolution=10)
-        
+
         # Higher resolution should produce more hexagons
         assert len(result_high) > len(result_low)
         assert 'hex_id_9' in result_low.columns
@@ -306,14 +306,14 @@ class TestData:
     def test_create_hexagonal_grid_geometry_column(self, sample_polygon_gdf):
         """Test that result has geometry column."""
         result = data.create_hexagonal_grid(sample_polygon_gdf, resolution=8)
-        
+
         assert 'geometry' in result.columns
         assert result.geometry.geom_type.iloc[0] == 'Polygon'
 
     def test_create_hexagonal_grid_no_duplicates(self, sample_polygon_gdf):
         """Test that result has no duplicate hexagons."""
         result = data.create_hexagonal_grid(sample_polygon_gdf, resolution=8)
-        
+
         initial_count = len(result)
         dedup_count = len(result.drop_duplicates(subset=['hex_id_8']))
         assert initial_count == dedup_count
@@ -321,31 +321,31 @@ class TestData:
     def test_create_hexagonal_grid_empty_geodataframe(self):
         """Test handling of empty GeoDataFrame."""
         empty_gdf = gpd.GeoDataFrame(columns=['geometry'], crs='EPSG:4326')
-        
+
         with pytest.raises(ValueError, match="cannot be None or empty"):
             data.create_hexagonal_grid(empty_gdf, resolution=10)
 
     def test_create_hexagonal_grid_multipolygon(self):
         """Test hexagonal grid with MultiPolygon."""
         poly1 = Polygon([
-		(-99.17709913, 19.41851742), 
-		(-99.1682861, 19.41873907), 
-		(-99.16826651, 19.41292077), 
-		(-99.17823503, 19.41168321), 
+		(-99.17709913, 19.41851742),
+		(-99.1682861, 19.41873907),
+		(-99.16826651, 19.41292077),
+		(-99.17823503, 19.41168321),
 		(-99.17709913, 19.41851742)
         ])
         poly2 = Polygon([
-		(-99.17040191, 19.40765678), 
-		(-99.17068946, 19.40244942), 
-		(-99.1586123, 19.40434795), 
-		(-99.15740458, 19.41036888), 
+		(-99.17040191, 19.40765678),
+		(-99.17068946, 19.40244942),
+		(-99.1586123, 19.40434795),
+		(-99.15740458, 19.41036888),
 		(-99.17040191, 19.40765678)
         ])
         multipoly = MultiPolygon([poly1, poly2])
-        
+
         gdf = gpd.GeoDataFrame({'geometry': [multipoly]}, crs='EPSG:4326')
         result = data.create_hexagonal_grid(gdf, resolution=8)
-        
+
         assert isinstance(result, gpd.GeoDataFrame)
         assert len(result) > 0
 
@@ -363,9 +363,9 @@ class TestData:
         ])
         gdf = gpd.GeoDataFrame({'geometry': [polygon]}, crs='EPSG:4326')
         gdf = gdf.to_crs('EPSG:3857')  # Convert to different CRS
-        
+
         result = data.create_hexagonal_grid(gdf, resolution=8)
-        
+
         assert result.crs == 'EPSG:4326'
 
     def test_create_hexagonal_grid_point_geometry(self, sample_geodataframe):
