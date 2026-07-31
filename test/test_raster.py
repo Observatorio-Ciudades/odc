@@ -223,6 +223,7 @@ class TestRasterModule:
 
         #  Run the summary routine (now operating on the mock DataFrame)
         gdf_summary, df_detail = rtp.raster_summary()
+        print(gdf_summary.columns)
 
         # ------------------------------------------------------------------
         # Assertions – unchanged from the original test
@@ -233,8 +234,8 @@ class TestRasterModule:
 
         # Core statistical columns produced by the pipeline
         expected_stats = [
-            f"{index_name}_max",
-            f"{index_name}_min",
+            f"{index_name}_avg_yearly_max",
+            f"{index_name}_avg_yearly_min",
             f"{index_name}_mean",
             f"{index_name}_std",
             f"{index_name}_median",
