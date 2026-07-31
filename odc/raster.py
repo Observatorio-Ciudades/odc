@@ -1376,7 +1376,7 @@ class PCRasterData:
 
             # read and upscale
             with rasterio.open(
-                self.processing_raster_dir + "/mosaic_upscale.tif", "r"
+                self.processing_raster_dir / "mosaic_upscale.tif", "r"
             ) as ds:
                 upscale_factor = 1 / 2
 
