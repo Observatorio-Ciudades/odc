@@ -304,3 +304,7 @@ class TestRasterModule:
         with rasterio.open(raster_path) as src:
             with pytest.raises(raster.NanValues, match="NaN values are still present"):
                 p._raster_nan_test(aoi, src)
+
+# Simple test runner
+if __name__ == "__main__":
+    pytest.main([__file__, "-v"])
