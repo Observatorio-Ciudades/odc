@@ -2,8 +2,10 @@
 name = "odc"
 version = "0.1.4"
 description = "This package streamlines spatial analysis processes by integrating various libraries and developing first-party functions. It is designed as a low-code solution for spatial analysis."
-authors = ["Observatorio de Ciudades <observatoriodeciudades.tec@gmail.com>"]
-license = "GPLv3"
+authors = [
+    { name = "Observatorio de Ciudades", email = "observatoriodeciudades.tec@gmail.com" },
+]
+license = "GPL-3.0-only"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
@@ -32,3 +34,7 @@ dependencies = [
     "sqlalchemy>=2.0.51",
     "tqdm>=4.70.0",
 ]
+
+[tool.setuptools.packages.find]
+include = ["odc*"]
+exclude = ["data*", "demos*", "notebooks*", "output*"]
