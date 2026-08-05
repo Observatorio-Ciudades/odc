@@ -683,7 +683,7 @@ def proximity_isochrone(
     else:
         # NaNs in time_min? --> Assume walking speed = 4km/hr
         no_time = len(edges.loc[edges["time_min"].isna()])
-        edges["time_min"].fillna((edges["length"] * 60) / 4000, inplace=True)
+        edges["time_min"] = edges["time_min"].fillna((edges["length"] * 60) / 4000)
         if no_time > 0:
             log(f"Calculated time for {no_time} edges that had no time data.")
 
@@ -1518,7 +1518,12 @@ def count_edges_steps_time(
     edges_count = edges.reset_index().merge(
         counts_df, on=["u", "v", "key"], how="left"
     )
-    edges_count["passing_count"] = edges_count["passing_count"].fillna(0).astype(int)
+    edges_count["passing_count"] = (
+        edges_count["passing_count"]
+        .infer_objects(copy=False)
+        .fillna(0)
+        .astype(int)
+    )
 
     # Restore original CRS
     edges_count = gpd.GeoDataFrame(
