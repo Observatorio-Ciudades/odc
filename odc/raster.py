@@ -757,16 +757,17 @@ class PCRasterData:
             Creates raster files in tmp_dir_name directory
             Updates CSV file tracking processing progress
         """
+
+        log("\n Starting raster analysis")
+
+        df_file_dir = self._define_processing_directory(df_raster_inventory)
+
         # remove any existing raster files in tmp_dir_name if previously processed
         if self.processing_raster_dir.exists():
             for f in self.processing_raster_dir.glob("*.tif"):
                 f.unlink()
 
         df_raster_inventory["able_to_download"] = np.nan
-
-        log("\n Starting raster analysis")
-
-        df_file_dir = self._define_processing_directory(df_raster_inventory)
 
         for i in tqdm(range(len(df_raster_inventory)), position=0, leave=True):
             # read dataframe in each iteration in case of code crash
@@ -1101,7 +1102,6 @@ class PCRasterData:
                 f"{self.processing_raster_dir}/{self.index_analysis}.tif"
             )
             gdf_raster_test = self.gdf_raster_test.to_crs(raster_file.crs)
-            raster_file.close()
 
             try:
                 # test for nan values within study area

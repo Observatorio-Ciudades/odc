@@ -535,7 +535,7 @@ def plot_proximity(
         # --- LEGEND - CATEGORIZED
         legend_type = "categorized"
         # Categorize time data in time bins
-        data_gdf.loc[f"{column}_cat"] = ""
+        data_gdf[f"{column}_cat"] = ""
         data_gdf.loc[data_gdf[column] >= 60, f"{column}_cat"] = "60 or more minutes"
         data_gdf.loc[
             (data_gdf[column] >= 45) & (data_gdf[column] < 60), f"{column}_cat"
